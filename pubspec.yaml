@@ -1,0 +1,37 @@
+name: timebox_planner
+description: A timebox-based mobile planner app built with Flutter.
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=2.19.0 <3.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.2
+
+  # State Management (Dart 2.x 호환)
+  flutter_riverpod: ^2.3.6
+
+  # Local Storage
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+
+  # Utilities
+  uuid: ^3.0.7
+  intl: ^0.18.1
+  equatable: ^2.0.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+  # Code Generation (Dart 2.x 호환 버전)
+  build_runner: ^2.3.3
+  hive_generator: ^2.0.0
+
+flutter:
+  uses-material-design: true
