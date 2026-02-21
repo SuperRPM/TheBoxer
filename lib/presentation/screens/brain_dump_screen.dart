@@ -49,9 +49,9 @@ class _BrainDumpScreenState extends ConsumerState<BrainDumpScreen> {
   @override
   Widget build(BuildContext context) {
     final items = ref.watch(brainDumpProvider);
-    final starred = items.where((i) => i.isStarred && !i.isChecked).toList();
+    final starred = items.where((i) => i.isStarred).toList();
     final pending = items.where((i) => !i.isChecked && !i.isStarred).toList();
-    final checked = items.where((i) => i.isChecked).toList();
+    final checked = items.where((i) => i.isChecked && !i.isStarred).toList();
 
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
