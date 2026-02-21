@@ -2,12 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:timebox_planner/data/models/routine.dart';
-import 'package:timebox_planner/data/models/category.dart';
 import 'package:timebox_planner/providers/routine_provider.dart';
-import 'package:timebox_planner/providers/category_provider.dart';
-import 'package:timebox_planner/providers/theme_provider.dart';
-import 'package:timebox_planner/presentation/widgets/category/category_chip_widget.dart';
-import 'package:timebox_planner/utils/color_utils.dart';
 
 /// 루틴 목록 조회 및 관리 화면
 class RoutineScreen extends ConsumerWidget {
@@ -16,14 +11,6 @@ class RoutineScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final routinesAsync = ref.watch(routinesProvider);
-    final categoriesAsync = ref.watch(categoriesProvider);
-    final isColorMode = ref.watch(themeProvider);
-
-    final categoryMap = categoriesAsync.when(
-      data: (list) => {for (final c in list) c.id: c},
-      loading: () => <String, Category>{},
-      error: (_, __) => <String, Category>{},
-    );
 
     return Scaffold(
       appBar: AppBar(
@@ -57,15 +44,9 @@ class RoutineScreen extends ConsumerWidget {
             itemCount: routines.length,
             itemBuilder: (ctx, i) {
               final routine = routines[i];
-              final category = routine.categoryId != null
-                  ? categoryMap[routine.categoryId]
-                  : null;
               return _RoutineCard(
                 routine: routine,
-                category: category,
-                isColorMode: isColorMode,
-                onEdit: () => _showDialog(context, ref,
-                    existing: routine, categoryMap: categoryMap),
+                onEdit: () => _showDialog(context, ref, existing: routine),
                 onDelete: () => _confirmDelete(context, ref, routine),
               );
             },
@@ -76,14 +57,7 @@ class RoutineScreen extends ConsumerWidget {
             Center(child: Text('루틴 로드 오류: $e')),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          final categoryMap = categoriesAsync.when(
-            data: (list) => {for (final c in list) c.id: c},
-            loading: () => <String, Category>{},
-            error: (_, __) => <String, Category>{},
-          );
-          _showDialog(context, ref, categoryMap: categoryMap);
-        },
+        onPressed: () => _showDialog(context, ref),
         tooltip: '루틴 추가',
         child: const Icon(Icons.add),
       ),
@@ -122,7 +96,6 @@ class RoutineScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref, {
     Routine? existing,
-    required Map<String, Category> categoryMap,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -131,10 +104,7 @@ class RoutineScreen extends ConsumerWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => _RoutineDialog(
-        existing: existing,
-        categoryMap: categoryMap,
-      ),
+      builder: (_) => _RoutineDialog(existing: existing),
     );
   }
 }
@@ -142,28 +112,18 @@ class RoutineScreen extends ConsumerWidget {
 /// 루틴 카드 위젯
 class _RoutineCard extends StatelessWidget {
   final Routine routine;
-  final Category? category;
-  final bool isColorMode;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _RoutineCard({
     Key? key,
     required this.routine,
-    required this.category,
-    required this.isColorMode,
     required this.onEdit,
     required this.onDelete,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    Color chipColor = Colors.blueGrey.shade200;
-    if (category != null) {
-      final raw = ColorUtils.fromValue(category!.colorValue);
-      chipColor = ColorUtils.adaptiveColor(raw, isColorMode: isColorMode);
-    }
-
     return Dismissible(
       key: ValueKey(routine.id),
       direction: DismissDirection.endToStart,
@@ -175,37 +135,27 @@ class _RoutineCard extends StatelessWidget {
       ),
       confirmDismiss: (_) async {
         onDelete();
-        return false; // 직접 삭제 처리
+        return false;
       },
       child: Card(
         margin: const EdgeInsets.only(bottom: 8),
         child: ListTile(
           leading: CircleAvatar(
-            backgroundColor: chipColor.withOpacity(0.2),
-            child: Icon(Icons.repeat, color: chipColor, size: 20),
+            backgroundColor: Colors.blueGrey.withOpacity(0.15),
+            child: const Icon(Icons.repeat, color: Colors.blueGrey, size: 20),
           ),
           title: Text(
             routine.title,
             style: const TextStyle(fontWeight: FontWeight.w600),
           ),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '기본 시간: ${routine.durationMinutes}분',
-                style: const TextStyle(fontSize: 12),
-              ),
-              if (category != null)
-                Text(
-                  category!.name,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: chipColor,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-            ],
-          ),
+          subtitle: routine.description != null
+              ? Text(
+                  routine.description!,
+                  style: const TextStyle(fontSize: 12),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                )
+              : null,
           trailing: IconButton(
             icon: const Icon(Icons.edit_outlined, size: 20),
             onPressed: onEdit,
@@ -220,13 +170,8 @@ class _RoutineCard extends StatelessWidget {
 /// 루틴 추가/편집 다이얼로그 (바텀시트)
 class _RoutineDialog extends ConsumerStatefulWidget {
   final Routine? existing;
-  final Map<String, Category> categoryMap;
 
-  const _RoutineDialog({
-    Key? key,
-    this.existing,
-    required this.categoryMap,
-  }) : super(key: key);
+  const _RoutineDialog({Key? key, this.existing}) : super(key: key);
 
   @override
   ConsumerState<_RoutineDialog> createState() => _RoutineDialogState();
@@ -236,8 +181,6 @@ class _RoutineDialogState extends ConsumerState<_RoutineDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _titleCtrl;
   late final TextEditingController _descCtrl;
-  late final TextEditingController _durationCtrl;
-  String? _categoryId;
   bool _isLoading = false;
 
   bool get _isEdit => widget.existing != null;
@@ -248,16 +191,12 @@ class _RoutineDialogState extends ConsumerState<_RoutineDialog> {
     final r = widget.existing;
     _titleCtrl = TextEditingController(text: r?.title ?? '');
     _descCtrl = TextEditingController(text: r?.description ?? '');
-    _durationCtrl =
-        TextEditingController(text: r?.durationMinutes.toString() ?? '60');
-    _categoryId = r?.categoryId;
   }
 
   @override
   void dispose() {
     _titleCtrl.dispose();
     _descCtrl.dispose();
-    _durationCtrl.dispose();
     super.dispose();
   }
 
@@ -265,12 +204,9 @@ class _RoutineDialogState extends ConsumerState<_RoutineDialog> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
     try {
-      final duration = int.tryParse(_durationCtrl.text.trim()) ?? 60;
       final routine = Routine(
         id: widget.existing?.id ?? const Uuid().v4(),
         title: _titleCtrl.text.trim(),
-        durationMinutes: duration,
-        categoryId: _categoryId,
         description: _descCtrl.text.trim().isEmpty
             ? null
             : _descCtrl.text.trim(),
@@ -295,9 +231,6 @@ class _RoutineDialogState extends ConsumerState<_RoutineDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final isColorMode = ref.watch(themeProvider);
-    final categories = widget.categoryMap.values.toList();
-
     return Padding(
       padding: EdgeInsets.only(
         left: 16,
@@ -334,63 +267,21 @@ class _RoutineDialogState extends ConsumerState<_RoutineDialog> {
                 decoration: const InputDecoration(labelText: '루틴 이름 *'),
                 validator: (v) =>
                     (v == null || v.trim().isEmpty) ? '이름을 입력해 주세요.' : null,
+                textInputAction: TextInputAction.next,
               ),
               const SizedBox(height: 12),
 
-              // 기본 시간
-              TextFormField(
-                controller: _durationCtrl,
-                decoration: const InputDecoration(
-                  labelText: '기본 시간 (분) *',
-                  suffixText: '분',
-                ),
-                keyboardType: TextInputType.number,
-                validator: (v) {
-                  final n = int.tryParse(v ?? '');
-                  if (n == null || n <= 0) return '양수를 입력해 주세요.';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-
-              // 카테고리 선택
-              const Text(
-                '카테고리',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  GestureDetector(
-                    onTap: () => setState(() => _categoryId = null),
-                    child: Chip(
-                      label: const Text('미지정'),
-                      backgroundColor: _categoryId == null
-                          ? Colors.grey.shade300
-                          : Colors.grey.shade100,
-                    ),
-                  ),
-                  ...categories.map((cat) => CategoryChipWidget(
-                        category: cat,
-                        isSelected: _categoryId == cat.id,
-                        isColorMode: isColorMode,
-                        onTap: () =>
-                            setState(() => _categoryId = cat.id),
-                      )),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // 설명
+              // 설명 (선택)
               TextFormField(
                 controller: _descCtrl,
-                decoration:
-                    const InputDecoration(labelText: '설명 (선택)'),
+                decoration: const InputDecoration(
+                  labelText: '설명 (선택)',
+                  hintText: '루틴에 대한 설명을 입력하세요',
+                ),
                 maxLines: 2,
+                textInputAction: TextInputAction.done,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
 
               // 저장 버튼
               SizedBox(
@@ -401,8 +292,7 @@ class _RoutineDialogState extends ConsumerState<_RoutineDialog> {
                       ? const SizedBox(
                           height: 20,
                           width: 20,
-                          child:
-                              CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : Text(_isEdit ? '수정 저장' : '저장'),
                 ),

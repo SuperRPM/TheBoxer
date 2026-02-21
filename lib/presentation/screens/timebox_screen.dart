@@ -1,47 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import 'package:timebox_planner/data/models/time_unit.dart';
 import 'package:timebox_planner/data/models/timebox_block.dart';
-import 'package:timebox_planner/data/models/category.dart';
 import 'package:timebox_planner/data/models/routine.dart';
-import 'package:timebox_planner/providers/category_provider.dart';
 import 'package:timebox_planner/providers/theme_provider.dart';
 import 'package:timebox_planner/providers/timebox_provider.dart';
-import 'package:timebox_planner/presentation/widgets/category/category_chip_widget.dart';
 import 'package:timebox_planner/presentation/widgets/routine/routine_selector_widget.dart';
 import 'package:timebox_planner/utils/time_utils.dart';
 
-/// 타임박스 생성/편집 화면 (바텀시트 또는 풀스크린 다이얼로그)
-///
-/// 사용 예시:
-/// ```dart
-/// // 새 블록 생성
-/// TimeboxScreen.showCreate(context, date: selectedDate, startMinute: 540);
-/// // 기존 블록 편집
-/// TimeboxScreen.showEdit(context, block: existingBlock);
-/// ```
+/// 타임박스 생성/편집 화면 (바텀시트)
 class TimeboxScreen extends ConsumerStatefulWidget {
-  /// 편집할 기존 블록 (null이면 새 블록 생성)
   final TimeboxBlock? existingBlock;
-
-  /// 새 블록의 기본 날짜
   final DateTime? initialDate;
-
-  /// 새 블록의 기본 시작 분
   final int? initialStartMinute;
+  final String? initialTitle;
+  /// 저장 성공 시 호출되는 콜백 (예: 브레인덤프 항목 체크 처리)
+  final VoidCallback? onSaved;
 
   const TimeboxScreen({
     Key? key,
     this.existingBlock,
     this.initialDate,
     this.initialStartMinute,
+    this.initialTitle,
+    this.onSaved,
   }) : super(key: key);
 
-  /// 새 타임박스 생성 바텀시트
   static Future<void> showCreate(
     BuildContext context, {
     required DateTime date,
     int startMinute = 540,
+    String? initialTitle,
+    VoidCallback? onSaved,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -53,15 +44,14 @@ class TimeboxScreen extends ConsumerStatefulWidget {
       builder: (_) => TimeboxScreen(
         initialDate: date,
         initialStartMinute: startMinute,
+        initialTitle: initialTitle,
+        onSaved: onSaved,
       ),
     );
   }
 
-  /// 기존 타임박스 편집 바텀시트
-  static Future<void> showEdit(
-    BuildContext context, {
-    required TimeboxBlock block,
-  }) {
+  static Future<void> showEdit(BuildContext context,
+      {required TimeboxBlock block}) {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -83,7 +73,6 @@ class _TimeboxScreenState extends ConsumerState<TimeboxScreen> {
   late final TextEditingController _descCtrl;
   late int _startMinute;
   late int _endMinute;
-  String? _categoryId;
   String? _routineId;
   bool _isLoading = false;
 
@@ -98,15 +87,14 @@ class _TimeboxScreenState extends ConsumerState<TimeboxScreen> {
       _descCtrl = TextEditingController(text: block.description ?? '');
       _startMinute = block.startMinute;
       _endMinute = block.endMinute;
-      _categoryId = block.categoryId;
       _routineId = block.routineId;
     } else {
-      _titleCtrl = TextEditingController();
+      _titleCtrl = TextEditingController(text: widget.initialTitle ?? '');
       _descCtrl = TextEditingController();
-      _startMinute = widget.initialStartMinute ?? 540; // 기본 09:00
-      _endMinute = _startMinute + 60; // 기본 1시간
-      _categoryId = null;
-      _routineId = null;
+      _startMinute = widget.initialStartMinute ?? 540;
+      // 기본 종료 시간 = 시작 + 현재 TimeUnit 단위
+      final timeUnit = ref.read(timeUnitProvider);
+      _endMinute = _startMinute + timeUnit.minuteInterval;
     }
   }
 
@@ -123,14 +111,11 @@ class _TimeboxScreenState extends ConsumerState<TimeboxScreen> {
       _showError('종료 시간은 시작 시간보다 늦어야 합니다.');
       return;
     }
-
     setState(() => _isLoading = true);
-
     try {
       final date = widget.existingBlock?.date ??
           widget.initialDate ??
           TimeUtils.dateOnly(DateTime.now());
-
       final block = TimeboxBlock(
         id: widget.existingBlock?.id ?? const Uuid().v4(),
         date: date,
@@ -139,19 +124,18 @@ class _TimeboxScreenState extends ConsumerState<TimeboxScreen> {
         title: _titleCtrl.text.trim(),
         description:
             _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
-        categoryId: _categoryId,
         routineId: _routineId,
       );
-
-      final notifier =
-          ref.read(timeboxNotifierProvider(date).notifier);
+      final notifier = ref.read(timeboxNotifierProvider(date).notifier);
       if (_isEdit) {
         await notifier.updateBlock(block);
       } else {
         await notifier.addBlock(block);
       }
-
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        widget.onSaved?.call(); // 저장 완료 콜백 (브레인덤프 체크 등)
+        Navigator.pop(context);
+      }
     } catch (e) {
       _showError('저장 중 오류가 발생했습니다: $e');
     } finally {
@@ -167,9 +151,8 @@ class _TimeboxScreenState extends ConsumerState<TimeboxScreen> {
         content: const Text('이 타임박스를 삭제하시겠습니까?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('취소'),
-          ),
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('취소')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -179,7 +162,6 @@ class _TimeboxScreenState extends ConsumerState<TimeboxScreen> {
       ),
     );
     if (confirmed != true) return;
-
     setState(() => _isLoading = true);
     try {
       final date = widget.existingBlock!.date;
@@ -202,53 +184,40 @@ class _TimeboxScreenState extends ConsumerState<TimeboxScreen> {
     }
   }
 
+  /// 드럼롤 시간 선택기 호출 (TimeUnit 단위로 분 스냅)
   Future<void> _pickTime({required bool isStart}) async {
-    final initial = TimeOfDay(
-      hour: (isStart ? _startMinute : _endMinute) ~/ 60,
-      minute: (isStart ? _startMinute : _endMinute) % 60,
-    );
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: initial,
-      builder: (ctx, child) => MediaQuery(
-        data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: true),
-        child: child!,
-      ),
+    final timeUnit = ref.read(timeUnitProvider);
+    final current = isStart ? _startMinute : _endMinute;
+    final picked = await showWheelTimePicker(
+      context,
+      initialMinute: current,
+      snapInterval: timeUnit.minuteInterval,
     );
     if (picked == null) return;
-    final totalMin = picked.hour * 60 + picked.minute;
     setState(() {
       if (isStart) {
-        _startMinute = totalMin;
+        _startMinute = picked;
         if (_endMinute <= _startMinute) {
-          _endMinute = _startMinute + 30;
+          _endMinute = _startMinute + timeUnit.minuteInterval;
         }
       } else {
-        _endMinute = totalMin;
+        _endMinute = picked;
       }
     });
   }
 
-  /// 루틴 선택 시 필드 자동 채움
   void _applyRoutine(Routine routine) {
     setState(() {
       _titleCtrl.text = routine.title;
       _descCtrl.text = routine.description ?? '';
-      _endMinute = _startMinute + routine.durationMinutes;
-      _categoryId = routine.categoryId;
+      // 시간은 사용자가 직접 설정 (루틴에 사전 시간 없음)
       _routineId = routine.id;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final isColorMode = ref.watch(themeProvider);
-    final categoriesAsync = ref.watch(categoriesProvider);
-    final categories = categoriesAsync.when(
-      data: (list) => list,
-      loading: () => <Category>[],
-      error: (_, __) => <Category>[],
-    );
+    ref.watch(themeProvider); // 테마 변경 감지 유지
 
     return Padding(
       padding: EdgeInsets.only(
@@ -267,10 +236,8 @@ class _TimeboxScreenState extends ConsumerState<TimeboxScreen> {
               // 헤더
               Row(
                 children: [
-                  Text(
-                    _isEdit ? '타임박스 편집' : '새 타임박스',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
+                  Text(_isEdit ? '타임박스 편집' : '새 타임박스',
+                      style: Theme.of(context).textTheme.titleMedium),
                   const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.close),
@@ -299,7 +266,7 @@ class _TimeboxScreenState extends ConsumerState<TimeboxScreen> {
               ),
               const SizedBox(height: 12),
 
-              // 시간 선택
+              // 시간 선택 (드럼롤 피커)
               Row(
                 children: [
                   Expanded(
@@ -321,77 +288,19 @@ class _TimeboxScreenState extends ConsumerState<TimeboxScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-
-              // 카테고리 선택
-              const Text(
-                '카테고리',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-              ),
-              const SizedBox(height: 8),
-              if (categories.isEmpty)
-                const Text(
-                  '카테고리 없음 (카테고리 화면에서 추가)',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                )
-              else
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    // 미지정 칩
-                    GestureDetector(
-                      onTap: () => setState(() => _categoryId = null),
-                      child: Chip(
-                        label: const Text('미지정'),
-                        backgroundColor: _categoryId == null
-                            ? Colors.grey.shade300
-                            : Colors.grey.shade100,
-                        side: BorderSide(
-                          color: _categoryId == null
-                              ? Colors.grey
-                              : Colors.transparent,
-                        ),
-                      ),
-                    ),
-                    ...categories.map((cat) {
-                      return CategoryChipWidget(
-                        category: cat,
-                        isSelected: _categoryId == cat.id,
-                        isColorMode: isColorMode,
-                        onTap: () => setState(() => _categoryId = cat.id),
-                      );
-                    }).toList(),
-                  ],
-                ),
-              const SizedBox(height: 12),
-
-              // 설명
-              TextFormField(
-                controller: _descCtrl,
-                decoration: const InputDecoration(
-                  labelText: '설명 (선택)',
-                  hintText: '메모나 설명을 입력하세요',
-                ),
-                maxLines: 3,
-                textInputAction: TextInputAction.done,
-              ),
               const SizedBox(height: 20),
 
-              // 저장 / 삭제 버튼
+              // 저장 / 삭제
               Row(
                 children: [
                   if (_isEdit) ...[
                     OutlinedButton.icon(
                       onPressed: _isLoading ? null : _delete,
                       icon: const Icon(Icons.delete_outline, color: Colors.red),
-                      label: const Text(
-                        '삭제',
-                        style: TextStyle(color: Colors.red),
-                      ),
+                      label: const Text('삭제',
+                          style: TextStyle(color: Colors.red)),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.red),
-                      ),
+                          side: const BorderSide(color: Colors.red)),
                     ),
                     const SizedBox(width: 12),
                   ],
@@ -402,9 +311,7 @@ class _TimeboxScreenState extends ConsumerState<TimeboxScreen> {
                           ? const SizedBox(
                               height: 20,
                               width: 20,
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2),
-                            )
+                              child: CircularProgressIndicator(strokeWidth: 2))
                           : Text(_isEdit ? '수정 저장' : '저장'),
                     ),
                   ),
@@ -418,18 +325,17 @@ class _TimeboxScreenState extends ConsumerState<TimeboxScreen> {
   }
 }
 
-/// 시간 선택 버튼 위젯
+// ─────────────────────────────────────────────
+// 시간 표시 버튼 위젯
+// ─────────────────────────────────────────────
 class _TimePicker extends StatelessWidget {
   final String label;
   final int minute;
   final VoidCallback onTap;
 
-  const _TimePicker({
-    Key? key,
-    required this.label,
-    required this.minute,
-    required this.onTap,
-  }) : super(key: key);
+  const _TimePicker(
+      {Key? key, required this.label, required this.minute, required this.onTap})
+      : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -451,6 +357,216 @@ class _TimePicker extends StatelessWidget {
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// 드럼롤 시간 선택기
+// ─────────────────────────────────────────────
+
+/// [snapInterval] 분 단위로 minutes 목록 생성 (00:00~23:59 범위 내)
+Future<int?> showWheelTimePicker(
+  BuildContext context, {
+  required int initialMinute,
+  int snapInterval = 10,
+}) {
+  return showModalBottomSheet<int>(
+    context: context,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    builder: (_) => _WheelTimePicker(
+      initialMinute: initialMinute,
+      snapInterval: snapInterval,
+    ),
+  );
+}
+
+class _WheelTimePicker extends StatefulWidget {
+  final int initialMinute;
+  final int snapInterval;
+
+  const _WheelTimePicker({
+    Key? key,
+    required this.initialMinute,
+    required this.snapInterval,
+  }) : super(key: key);
+
+  @override
+  State<_WheelTimePicker> createState() => _WheelTimePickerState();
+}
+
+class _WheelTimePickerState extends State<_WheelTimePicker> {
+  late int _hour;
+  late int _minuteIndex;
+  late List<int> _minuteOptions;
+  late FixedExtentScrollController _hourCtrl;
+  late FixedExtentScrollController _minCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _minuteOptions = _buildMinuteOptions(widget.snapInterval);
+    _hour = widget.initialMinute ~/ 60;
+    final rawMin = widget.initialMinute % 60;
+    // 가장 가까운 스냅 인덱스
+    _minuteIndex = _nearestIndex(rawMin);
+    _hourCtrl = FixedExtentScrollController(initialItem: _hour);
+    _minCtrl = FixedExtentScrollController(initialItem: _minuteIndex);
+  }
+
+  List<int> _buildMinuteOptions(int interval) {
+    final opts = <int>[];
+    for (int m = 0; m < 60; m += interval) {
+      opts.add(m);
+    }
+    return opts;
+  }
+
+  int _nearestIndex(int rawMin) {
+    int best = 0;
+    int bestDiff = 999;
+    for (int i = 0; i < _minuteOptions.length; i++) {
+      final diff = (_minuteOptions[i] - rawMin).abs();
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  int get _selectedTotalMinute =>
+      _hour * 60 + _minuteOptions[_minuteIndex];
+
+  @override
+  void dispose() {
+    _hourCtrl.dispose();
+    _minCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).primaryColor;
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 핸들
+          Container(
+            margin: const EdgeInsets.only(top: 10, bottom: 4),
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+
+          // 타이틀 + 완료
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                const Text('시간 선택',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                const Spacer(),
+                TextButton(
+                  onPressed: () =>
+                      Navigator.pop(context, _selectedTotalMinute),
+                  child: const Text('완료'),
+                ),
+              ],
+            ),
+          ),
+
+          // 두 휠 (시 | : | 분)
+          SizedBox(
+            height: 200,
+            child: Row(
+              children: [
+                // 시 휠 (0~23)
+                Expanded(
+                  child: ListWheelScrollView.useDelegate(
+                    controller: _hourCtrl,
+                    itemExtent: 44,
+                    onSelectedItemChanged: (i) =>
+                        setState(() => _hour = i),
+                    physics: const FixedExtentScrollPhysics(),
+                    perspective: 0.003,
+                    childDelegate: ListWheelChildBuilderDelegate(
+                      childCount: 24,
+                      builder: (ctx, i) => _WheelItem(
+                        label: i.toString().padLeft(2, '0'),
+                        selected: i == _hour,
+                        color: color,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // 구분자
+                Text(':',
+                    style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: color)),
+
+                // 분 휠 (snapInterval 단위)
+                Expanded(
+                  child: ListWheelScrollView(
+                    controller: _minCtrl,
+                    itemExtent: 44,
+                    onSelectedItemChanged: (i) =>
+                        setState(() => _minuteIndex = i),
+                    physics: const FixedExtentScrollPhysics(),
+                    perspective: 0.003,
+                    children: _minuteOptions.asMap().entries.map((e) {
+                      return _WheelItem(
+                        label: e.value.toString().padLeft(2, '0'),
+                        selected: e.key == _minuteIndex,
+                        color: color,
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+}
+
+class _WheelItem extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final Color color;
+
+  const _WheelItem({
+    Key? key,
+    required this.label,
+    required this.selected,
+    required this.color,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: selected ? 26 : 20,
+          fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+          color: selected ? color : Colors.grey.shade400,
         ),
       ),
     );

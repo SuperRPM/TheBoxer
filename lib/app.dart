@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:timebox_planner/core/theme/app_theme.dart';
 import 'package:timebox_planner/presentation/screens/home_screen.dart';
-import 'package:timebox_planner/presentation/screens/category_screen.dart';
 import 'package:timebox_planner/presentation/screens/routine_screen.dart';
 import 'package:timebox_planner/presentation/screens/timebox_screen.dart';
 import 'package:timebox_planner/presentation/screens/weekly_plan_screen.dart';
@@ -28,7 +27,6 @@ class TimeboxPlannerApp extends ConsumerWidget {
         '/timebox': (context) => const TimeboxScreen(),
         '/weekly_plan': (context) => const WeeklyPlanScreen(),
         '/routine': (context) => const RoutineScreen(),
-        '/category': (context) => const CategoryScreen(),
       },
     );
   }

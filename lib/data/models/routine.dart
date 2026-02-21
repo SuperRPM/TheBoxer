@@ -15,11 +15,11 @@ class Routine extends HiveObject {
   @HiveField(1)
   String title;
 
-  /// 기본 지속 시간 (분)
+  /// 기본 지속 시간 (분) - 더 이상 사용되지 않음, Hive 호환성 유지
   @HiveField(2)
   int durationMinutes;
 
-  /// 연결된 카테고리 ID (null이면 미지정)
+  /// 연결된 카테고리 ID - 더 이상 사용되지 않음, Hive 호환성 유지
   @HiveField(3)
   String? categoryId;
 
@@ -29,10 +29,10 @@ class Routine extends HiveObject {
   Routine({
     required this.id,
     required this.title,
-    required this.durationMinutes,
+    this.durationMinutes = 0,
     this.categoryId,
     this.description,
-  }) : assert(durationMinutes > 0, 'durationMinutes must be positive');
+  });
 
   Routine copyWith({
     String? id,
@@ -51,5 +51,5 @@ class Routine extends HiveObject {
   }
 
   @override
-  String toString() => 'Routine(id: $id, title: $title, ${durationMinutes}min)';
+  String toString() => 'Routine(id: $id, title: $title)';
 }

@@ -1,0 +1,227 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:timebox_planner/data/models/brain_dump_item.dart';
+import 'package:timebox_planner/providers/brain_dump_provider.dart';
+import 'package:timebox_planner/providers/placement_provider.dart';
+
+/// 브레인 덤핑 화면
+///
+/// 머릿속 생각을 빠르게 꺼내 적고, 나중에 캘린더에 배치하는 기능
+class BrainDumpScreen extends ConsumerStatefulWidget {
+  const BrainDumpScreen({Key? key}) : super(key: key);
+
+  @override
+  ConsumerState<BrainDumpScreen> createState() => _BrainDumpScreenState();
+}
+
+class _BrainDumpScreenState extends ConsumerState<BrainDumpScreen> {
+  final _inputCtrl = TextEditingController();
+  final _focusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _inputCtrl.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _add() {
+    final text = _inputCtrl.text.trim();
+    if (text.isEmpty) return;
+    ref.read(brainDumpProvider.notifier).add(text);
+    _inputCtrl.clear();
+    _focusNode.requestFocus();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = ref.watch(brainDumpProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('브레인 덤핑'),
+        centerTitle: false,
+      ),
+      body: Column(
+        children: [
+          // 빠른 입력창
+          _QuickInput(
+            controller: _inputCtrl,
+            focusNode: _focusNode,
+            onAdd: _add,
+          ),
+          const Divider(height: 1),
+
+          // 목록
+          Expanded(
+            child: items.isEmpty
+                ? const _EmptyState()
+                : ListView.builder(
+                    padding: const EdgeInsets.only(bottom: 80),
+                    itemCount: items.length,
+                    itemBuilder: (ctx, i) {
+                      final item = items[i];
+                      return _BrainDumpTile(
+                        key: ValueKey(item.id),
+                        item: item,
+                        onToggle: () =>
+                            ref.read(brainDumpProvider.notifier).toggle(item.id),
+                        onDelete: () =>
+                            ref.read(brainDumpProvider.notifier).delete(item.id),
+                        onSchedule: () => _startPlacement(context, item),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 오늘 탭 캘린더에서 시간 배치 모드 시작
+  void _startPlacement(BuildContext context, BrainDumpItem item) {
+    ref.read(placementProvider.notifier).startPlacement(
+      itemId: item.id,
+      title: item.content,
+      type: PendingItemType.brainDump,
+    );
+    // 오늘 탭(인덱스 0)으로 이동은 HomeScreen의 NavigationBar를 통해
+    // 사용자가 직접 전환하거나, 스낵바로 안내
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('배치 모드: "${item.content}" — 오늘 탭에서 시간을 선택하세요'),
+        duration: const Duration(seconds: 3),
+        action: SnackBarAction(label: '확인', onPressed: () {}),
+      ),
+    );
+  }
+}
+
+/// 상단 빠른 입력창
+class _QuickInput extends StatelessWidget {
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final VoidCallback onAdd;
+
+  const _QuickInput({
+    Key? key,
+    required this.controller,
+    required this.focusNode,
+    required this.onAdd,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: controller,
+              focusNode: focusNode,
+              decoration: const InputDecoration(
+                hintText: '생각을 입력하세요...',
+                border: OutlineInputBorder(),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                isDense: true,
+              ),
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => onAdd(),
+            ),
+          ),
+          const SizedBox(width: 8),
+          FilledButton(
+            onPressed: onAdd,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(48, 48),
+              padding: EdgeInsets.zero,
+            ),
+            child: const Icon(Icons.add),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 빈 상태 안내
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.lightbulb_outline,
+              size: 56, color: Colors.grey.shade400),
+          const SizedBox(height: 12),
+          Text(
+            '머릿속 생각을 자유롭게 적어보세요',
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '오늘 탭 캘린더에서 시간을 배치할 수 있어요',
+            style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 브레인 덤핑 항목 타일 (스와이프 삭제 지원)
+class _BrainDumpTile extends StatelessWidget {
+  final BrainDumpItem item;
+  final VoidCallback onToggle;
+  final VoidCallback onDelete;
+  final VoidCallback onSchedule;
+
+  const _BrainDumpTile({
+    Key? key,
+    required this.item,
+    required this.onToggle,
+    required this.onDelete,
+    required this.onSchedule,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Dismissible(
+      key: ValueKey(item.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        color: Colors.red.shade400,
+        child: const Icon(Icons.delete_outline, color: Colors.white),
+      ),
+      onDismissed: (_) => onDelete(),
+      child: ListTile(
+        leading: Checkbox(
+          value: item.isChecked,
+          onChanged: (_) => onToggle(),
+        ),
+        title: Text(
+          item.content,
+          style: TextStyle(
+            decoration:
+                item.isChecked ? TextDecoration.lineThrough : TextDecoration.none,
+            color: item.isChecked ? Colors.grey : null,
+          ),
+        ),
+        trailing: item.isChecked
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.place_outlined, size: 20),
+                tooltip: '캘린더에 배치',
+                onPressed: onSchedule,
+              ),
+      ),
+    );
+  }
+}

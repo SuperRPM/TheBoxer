@@ -84,17 +84,16 @@ class TimeboxNotifier
     await _load();
   }
 
-  /// 루틴에서 타임박스 블록 생성
+  /// 루틴에서 타임박스 블록 생성 (시간 범위는 사용자가 직접 지정)
   Future<void> addFromRoutine(
-      Routine routine, DateTime date, int startMinute) async {
+      Routine routine, DateTime date, int startMinute, int endMinute) async {
     final block = TimeboxBlock(
       id: const Uuid().v4(),
       date: TimeUtils.dateOnly(date),
       startMinute: startMinute,
-      endMinute: startMinute + routine.durationMinutes,
+      endMinute: endMinute,
       title: routine.title,
       description: routine.description,
-      categoryId: routine.categoryId,
       routineId: routine.id,
     );
     await addBlock(block);
