@@ -284,7 +284,7 @@ class _RoutineDialogState extends ConsumerState<_RoutineDialog> {
                 ),
                 maxLines: 2,
                 textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _save(),
+                onFieldSubmitted: (_) => _save(),
               ),
               const SizedBox(height: 24),
 
