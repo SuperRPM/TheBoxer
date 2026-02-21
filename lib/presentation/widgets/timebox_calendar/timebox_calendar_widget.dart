@@ -61,7 +61,8 @@ class _TimeboxCalendarWidgetState
       final timeUnit = ref.read(timeUnitProvider);
       final intervalMin = timeUnit.minuteInterval;
 
-      int endMinute = cellMinute;
+      // 탭한 셀을 포함하도록 해당 셀의 끝 시간을 종료 시간으로 사용
+      int endMinute = cellMinute + intervalMin;
       // 종료 시간은 시작 시간보다 최소 1 TimeUnit 이후여야 함
       if (endMinute <= startMinute) {
         endMinute = startMinute + intervalMin;
