@@ -341,7 +341,7 @@ class _PlacementBanner extends StatelessWidget {
 // ─────────────────────────────────────────────
 // 배치 항목 선택 바텀시트
 // ─────────────────────────────────────────────
-class _PlacementSheet extends ConsumerWidget {
+class _PlacementSheet extends ConsumerStatefulWidget {
   final void Function(BrainDumpItem) onBrainDumpSelected;
   final void Function(Routine) onRoutineSelected;
 
@@ -352,7 +352,30 @@ class _PlacementSheet extends ConsumerWidget {
   }) : super(key: key);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_PlacementSheet> createState() => _PlacementSheetState();
+}
+
+class _PlacementSheetState extends ConsumerState<_PlacementSheet> {
+  final _inputCtrl = TextEditingController();
+  final _focusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _inputCtrl.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _addBrainDump() {
+    final text = _inputCtrl.text.trim();
+    if (text.isEmpty) return;
+    ref.read(brainDumpProvider.notifier).add(text);
+    _inputCtrl.clear();
+    _focusNode.requestFocus();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final brainItems = ref.watch(brainDumpProvider);
     final routinesAsync = ref.watch(routinesProvider);
     final pending = brainItems.where((i) => !i.isChecked).toList();
@@ -392,6 +415,24 @@ class _PlacementSheet extends ConsumerWidget {
                 ],
               ),
             ),
+            // 브레인덤핑 빠른 입력창
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: TextField(
+                controller: _inputCtrl,
+                focusNode: _focusNode,
+                decoration: const InputDecoration(
+                  hintText: '새 항목 추가...',
+                  border: OutlineInputBorder(),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  isDense: true,
+                  prefixIcon: Icon(Icons.add, size: 18),
+                ),
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _addBrainDump(),
+              ),
+            ),
             const Divider(height: 1),
             Expanded(
               child: ListView(
@@ -412,7 +453,7 @@ class _PlacementSheet extends ConsumerWidget {
                               style: const TextStyle(fontSize: 14)),
                           trailing: const Icon(Icons.arrow_forward_ios,
                               size: 14, color: Colors.grey),
-                          onTap: () => onBrainDumpSelected(item),
+                          onTap: () => widget.onBrainDumpSelected(item),
                         )),
 
                   const Divider(height: 24),
@@ -444,7 +485,7 @@ class _PlacementSheet extends ConsumerWidget {
                                       : null,
                                   trailing: const Icon(Icons.arrow_forward_ios,
                                       size: 14, color: Colors.grey),
-                                  onTap: () => onRoutineSelected(routine),
+                                  onTap: () => widget.onRoutineSelected(routine),
                                 )),
                         ],
                       );
