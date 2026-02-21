@@ -19,10 +19,14 @@ class BrainDumpItem extends HiveObject {
   @HiveField(3)
   final DateTime createdAt;
 
+  @HiveField(4)
+  bool isStarred;
+
   BrainDumpItem({
     required this.id,
     required this.content,
     this.isChecked = false,
     required this.createdAt,
+    this.isStarred = false,
   });
 }

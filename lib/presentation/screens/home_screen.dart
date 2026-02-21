@@ -119,7 +119,10 @@ class _HomeContent extends ConsumerWidget {
           ),
         ],
       ),
-      body: Column(
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: Column(
         children: [
           // 배치 모드 배너
           if (placement != null)
@@ -142,14 +145,14 @@ class _HomeContent extends ConsumerWidget {
           Expanded(
             child: TimeboxCalendarWidget(
               selectedDate: selectedDate,
-              onTapToCreate: (m) =>
-                  TimeboxScreen.showCreate(context, date: selectedDate, startMinute: m),
+              onTapToCreate: (_) {}, // 빈 셀 탭으로 일정 생성 비활성화 (브레인덤핑에서만)
               onTapBlock: (b) => TimeboxScreen.showEdit(context, block: b),
               onPlacementComplete: (start, end) =>
                   _handlePlacementComplete(context, ref, selectedDate, start, end),
             ),
           ),
         ],
+        ),
       ),
       // FAB: 브레인덤핑 + 루틴 목록 보기 (배치 모드 진입)
       floatingActionButton: placement == null
@@ -191,15 +194,6 @@ class _HomeContent extends ConsumerWidget {
     }
 
     ref.read(placementProvider.notifier).clearPlacement();
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('배치 완료: ${placement.title}'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
   }
 
   /// 브레인덤핑 + 루틴 목록 바텀시트

@@ -21,13 +21,14 @@ class BrainDumpItemAdapter extends TypeAdapter<BrainDumpItem> {
       content: fields[1] as String,
       isChecked: fields[2] as bool,
       createdAt: fields[3] as DateTime,
+      isStarred: fields[4] as bool? ?? false,
     );
   }
 
   @override
   void write(BinaryWriter writer, BrainDumpItem obj) {
     writer
-      ..writeByte(4)
+      ..writeByte(5)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -35,7 +36,9 @@ class BrainDumpItemAdapter extends TypeAdapter<BrainDumpItem> {
       ..writeByte(2)
       ..write(obj.isChecked)
       ..writeByte(3)
-      ..write(obj.createdAt);
+      ..write(obj.createdAt)
+      ..writeByte(4)
+      ..write(obj.isStarred);
   }
 
   @override

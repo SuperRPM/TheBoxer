@@ -38,6 +38,15 @@ class BrainDumpNotifier extends StateNotifier<List<BrainDumpItem>> {
     await _repo.delete(id);
     _load();
   }
+
+  Future<void> toggleStar(String id) async {
+    // 별표 추가 시 기존 별표 항목이 5개 미만인지 확인
+    final item = state.firstWhere((i) => i.id == id, orElse: () => throw Exception());
+    final starredCount = state.where((i) => i.isStarred).length;
+    if (!item.isStarred && starredCount >= 5) return; // 최대 5개 제한
+    await _repo.toggleStar(id);
+    _load();
+  }
 }
 
 final brainDumpProvider =

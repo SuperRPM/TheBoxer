@@ -31,4 +31,12 @@ class HiveBrainDumpRepository {
     item.isChecked = !item.isChecked;
     await item.save();
   }
+
+  /// 별표 상태 토글
+  Future<void> toggleStar(String id) async {
+    final item = _box.get(id);
+    if (item == null) return;
+    item.isStarred = !item.isStarred;
+    await item.save();
+  }
 }

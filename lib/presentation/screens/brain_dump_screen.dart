@@ -5,8 +5,6 @@ import 'package:timebox_planner/providers/brain_dump_provider.dart';
 import 'package:timebox_planner/providers/placement_provider.dart';
 
 /// 브레인 덤핑 화면
-///
-/// 머릿속 생각을 빠르게 꺼내 적고, 나중에 캘린더에 배치하는 기능
 class BrainDumpScreen extends ConsumerStatefulWidget {
   const BrainDumpScreen({Key? key}) : super(key: key);
 
@@ -33,71 +31,170 @@ class _BrainDumpScreenState extends ConsumerState<BrainDumpScreen> {
     _focusNode.requestFocus();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final items = ref.watch(brainDumpProvider);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('브레인 덤핑'),
-        centerTitle: false,
-      ),
-      body: Column(
-        children: [
-          // 빠른 입력창
-          _QuickInput(
-            controller: _inputCtrl,
-            focusNode: _focusNode,
-            onAdd: _add,
-          ),
-          const Divider(height: 1),
-
-          // 목록
-          Expanded(
-            child: items.isEmpty
-                ? const _EmptyState()
-                : ListView.builder(
-                    padding: const EdgeInsets.only(bottom: 80),
-                    itemCount: items.length,
-                    itemBuilder: (ctx, i) {
-                      final item = items[i];
-                      return _BrainDumpTile(
-                        key: ValueKey(item.id),
-                        item: item,
-                        onToggle: () =>
-                            ref.read(brainDumpProvider.notifier).toggle(item.id),
-                        onDelete: () =>
-                            ref.read(brainDumpProvider.notifier).delete(item.id),
-                        onSchedule: () => _startPlacement(context, item),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 오늘 탭 캘린더에서 시간 배치 모드 시작
   void _startPlacement(BuildContext context, BrainDumpItem item) {
     ref.read(placementProvider.notifier).startPlacement(
       itemId: item.id,
       title: item.content,
       type: PendingItemType.brainDump,
     );
-    // 오늘 탭(인덱스 0)으로 이동은 HomeScreen의 NavigationBar를 통해
-    // 사용자가 직접 전환하거나, 스낵바로 안내
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('배치 모드: "${item.content}" — 오늘 탭에서 시간을 선택하세요'),
+        content: Text('"${item.content}" — 오늘 탭에서 시간을 선택하세요'),
         duration: const Duration(seconds: 3),
         action: SnackBarAction(label: '확인', onPressed: () {}),
       ),
     );
   }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = ref.watch(brainDumpProvider);
+    final starred = items.where((i) => i.isStarred && !i.isChecked).toList();
+    final pending = items.where((i) => !i.isChecked && !i.isStarred).toList();
+    final checked = items.where((i) => i.isChecked).toList();
+
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      behavior: HitTestBehavior.translucent,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('브레인 덤핑'),
+          centerTitle: false,
+        ),
+        body: Column(
+          children: [
+            // 빠른 입력창
+            _QuickInput(
+              controller: _inputCtrl,
+              focusNode: _focusNode,
+              onAdd: _add,
+            ),
+            const Divider(height: 1),
+
+            // 목록
+            Expanded(
+              child: items.isEmpty
+                  ? const _EmptyState()
+                  : ListView(
+                      padding: const EdgeInsets.only(bottom: 80),
+                      children: [
+                        // ── 별표 섹션 (최대 5개) ──
+                        if (starred.isNotEmpty) ...[
+                          _SectionLabel(
+                            icon: Icons.star,
+                            color: Colors.amber.shade600,
+                            label: '중요 (${starred.length}/5)',
+                          ),
+                          ...starred.map((item) => _BrainDumpTile(
+                                key: ValueKey('star_${item.id}'),
+                                item: item,
+                                onToggle: () => ref
+                                    .read(brainDumpProvider.notifier)
+                                    .toggle(item.id),
+                                onDelete: () => ref
+                                    .read(brainDumpProvider.notifier)
+                                    .delete(item.id),
+                                onToggleStar: () => ref
+                                    .read(brainDumpProvider.notifier)
+                                    .toggleStar(item.id),
+                              )),
+                          const Divider(height: 8),
+                        ],
+
+                        // ── 일반 목록 ──
+                        if (pending.isNotEmpty) ...[
+                          if (starred.isNotEmpty)
+                            const _SectionLabel(
+                              icon: Icons.inbox_outlined,
+                              color: Colors.grey,
+                              label: '할 일',
+                            ),
+                          ...pending.map((item) => _BrainDumpTile(
+                                key: ValueKey(item.id),
+                                item: item,
+                                onToggle: () => ref
+                                    .read(brainDumpProvider.notifier)
+                                    .toggle(item.id),
+                                onDelete: () => ref
+                                    .read(brainDumpProvider.notifier)
+                                    .delete(item.id),
+                                onToggleStar: () => ref
+                                    .read(brainDumpProvider.notifier)
+                                    .toggleStar(item.id),
+                              )),
+                        ],
+
+                        // ── 완료 목록 ──
+                        if (checked.isNotEmpty) ...[
+                          const Divider(height: 8),
+                          const _SectionLabel(
+                            icon: Icons.check_circle_outline,
+                            color: Colors.grey,
+                            label: '완료',
+                          ),
+                          ...checked.map((item) => _BrainDumpTile(
+                                key: ValueKey('done_${item.id}'),
+                                item: item,
+                                onToggle: () => ref
+                                    .read(brainDumpProvider.notifier)
+                                    .toggle(item.id),
+                                onDelete: () => ref
+                                    .read(brainDumpProvider.notifier)
+                                    .delete(item.id),
+                                onToggleStar: null,
+                              )),
+                        ],
+                      ],
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
-/// 상단 빠른 입력창
+// ─────────────────────────────────────────────
+// 섹션 레이블
+// ─────────────────────────────────────────────
+class _SectionLabel extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+
+  const _SectionLabel({
+    Key? key,
+    required this.icon,
+    required this.color,
+    required this.label,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 2),
+      child: Row(
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: color,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// 상단 빠른 입력창
+// ─────────────────────────────────────────────
 class _QuickInput extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
@@ -174,25 +271,27 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-/// 브레인 덤핑 항목 타일 (스와이프 삭제 지원)
+// ─────────────────────────────────────────────
+// 브레인 덤핑 항목 타일
+// ─────────────────────────────────────────────
 class _BrainDumpTile extends StatelessWidget {
   final BrainDumpItem item;
   final VoidCallback onToggle;
   final VoidCallback onDelete;
-  final VoidCallback onSchedule;
+  final VoidCallback? onToggleStar; // null이면 별표 버튼 숨김 (완료 항목)
 
   const _BrainDumpTile({
     Key? key,
     required this.item,
     required this.onToggle,
     required this.onDelete,
-    required this.onSchedule,
+    required this.onToggleStar,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Dismissible(
-      key: ValueKey(item.id),
+      key: ValueKey('dismissible_${item.id}_${item.isStarred}'),
       direction: DismissDirection.endToStart,
       background: Container(
         alignment: Alignment.centerRight,
@@ -209,18 +308,23 @@ class _BrainDumpTile extends StatelessWidget {
         title: Text(
           item.content,
           style: TextStyle(
-            decoration:
-                item.isChecked ? TextDecoration.lineThrough : TextDecoration.none,
+            decoration: item.isChecked
+                ? TextDecoration.lineThrough
+                : TextDecoration.none,
             color: item.isChecked ? Colors.grey : null,
           ),
         ),
-        trailing: item.isChecked
-            ? null
-            : IconButton(
-                icon: const Icon(Icons.place_outlined, size: 20),
-                tooltip: '캘린더에 배치',
-                onPressed: onSchedule,
-              ),
+        trailing: onToggleStar != null
+            ? IconButton(
+                icon: Icon(
+                  item.isStarred ? Icons.star : Icons.star_border,
+                  color: item.isStarred ? Colors.amber.shade600 : Colors.grey,
+                  size: 22,
+                ),
+                tooltip: item.isStarred ? '별표 해제' : '별표 등록',
+                onPressed: onToggleStar,
+              )
+            : null,
       ),
     );
   }

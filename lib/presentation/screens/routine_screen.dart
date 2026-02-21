@@ -231,7 +231,10 @@ class _RoutineDialogState extends ConsumerState<_RoutineDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      behavior: HitTestBehavior.translucent,
+      child: Padding(
       padding: EdgeInsets.only(
         left: 16,
         right: 16,
@@ -264,6 +267,7 @@ class _RoutineDialogState extends ConsumerState<_RoutineDialog> {
               // 제목
               TextFormField(
                 controller: _titleCtrl,
+                autofocus: true,
                 decoration: const InputDecoration(labelText: '루틴 이름 *'),
                 validator: (v) =>
                     (v == null || v.trim().isEmpty) ? '이름을 입력해 주세요.' : null,
@@ -280,6 +284,7 @@ class _RoutineDialogState extends ConsumerState<_RoutineDialog> {
                 ),
                 maxLines: 2,
                 textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _save(),
               ),
               const SizedBox(height: 24),
 
@@ -300,6 +305,7 @@ class _RoutineDialogState extends ConsumerState<_RoutineDialog> {
             ],
           ),
         ),
+      ),
       ),
     );
   }
