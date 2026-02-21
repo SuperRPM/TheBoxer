@@ -25,13 +25,14 @@ class TimeboxBlockAdapter extends TypeAdapter<TimeboxBlock> {
       description: fields[5] as String?,
       categoryId: fields[6] as String?,
       routineId: fields[7] as String?,
+      brainDumpItemId: fields[8] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, TimeboxBlock obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(9)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -47,7 +48,9 @@ class TimeboxBlockAdapter extends TypeAdapter<TimeboxBlock> {
       ..writeByte(6)
       ..write(obj.categoryId)
       ..writeByte(7)
-      ..write(obj.routineId);
+      ..write(obj.routineId)
+      ..writeByte(8)
+      ..write(obj.brainDumpItemId);
   }
 
   @override

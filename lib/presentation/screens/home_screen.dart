@@ -184,6 +184,7 @@ class _HomeContent extends ConsumerWidget {
       title: placement.title,
       description: placement.description,
       routineId: placement.type == PendingItemType.routine ? placement.itemId : null,
+      brainDumpItemId: placement.type == PendingItemType.brainDump ? placement.itemId : null,
     );
 
     await ref.read(timeboxNotifierProvider(date).notifier).addBlock(block);
@@ -557,8 +558,6 @@ class _WeeklyGoalBar extends ConsumerWidget {
           child: Text(
             '🎯 $content',
             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
         );
       },
@@ -588,10 +587,11 @@ class _BrainDumpInboxStripState
   @override
   Widget build(BuildContext context) {
     final items = ref.watch(brainDumpProvider);
-    final pending = items.where((i) => !i.isChecked).toList();
+    // 오늘 탭에는 별표 표시된 미완료 항목만 표시
+    final pending = items.where((i) => i.isStarred && !i.isChecked).toList();
     if (pending.isEmpty) return const SizedBox.shrink();
 
-    final color = Theme.of(context).primaryColor;
+    final color = Colors.amber.shade700;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -604,10 +604,10 @@ class _BrainDumpInboxStripState
             color: color.withOpacity(0.07),
             child: Row(
               children: [
-                Icon(Icons.inbox_outlined, size: 14, color: color),
+                Icon(Icons.star, size: 14, color: color),
                 const SizedBox(width: 6),
                 Text(
-                  '할 일 ${pending.length}개',
+                  '중요 ${pending.length}개',
                   style: TextStyle(
                     fontSize: 12,
                     color: color,

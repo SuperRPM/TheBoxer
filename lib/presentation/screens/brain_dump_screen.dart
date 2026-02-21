@@ -211,33 +211,17 @@ class _QuickInput extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: controller,
-              focusNode: focusNode,
-              decoration: const InputDecoration(
-                hintText: '생각을 입력하세요...',
-                border: OutlineInputBorder(),
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                isDense: true,
-              ),
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => onAdd(),
-            ),
-          ),
-          const SizedBox(width: 8),
-          FilledButton(
-            onPressed: onAdd,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(48, 48),
-              padding: EdgeInsets.zero,
-            ),
-            child: const Icon(Icons.add),
-          ),
-        ],
+      child: TextField(
+        controller: controller,
+        focusNode: focusNode,
+        decoration: const InputDecoration(
+          hintText: '생각을 입력하고 엔터...',
+          border: OutlineInputBorder(),
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          isDense: true,
+        ),
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => onAdd(),
       ),
     );
   }

@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import 'package:timebox_planner/data/models/time_unit.dart';
 import 'package:timebox_planner/data/models/timebox_block.dart';
 import 'package:timebox_planner/data/models/routine.dart';
+import 'package:timebox_planner/providers/brain_dump_provider.dart';
 import 'package:timebox_planner/providers/theme_provider.dart';
 import 'package:timebox_planner/providers/timebox_provider.dart';
 import 'package:timebox_planner/presentation/widgets/routine/routine_selector_widget.dart';
@@ -164,10 +165,18 @@ class _TimeboxScreenState extends ConsumerState<TimeboxScreen> {
     if (confirmed != true) return;
     setState(() => _isLoading = true);
     try {
-      final date = widget.existingBlock!.date;
+      final block = widget.existingBlock!;
       await ref
-          .read(timeboxNotifierProvider(date).notifier)
-          .deleteBlock(widget.existingBlock!.id);
+          .read(timeboxNotifierProvider(block.date).notifier)
+          .deleteBlock(block.id);
+      // 브레인덤핑에서 배치된 블록이면 미완료 상태로 복구
+      if (block.brainDumpItemId != null) {
+        final items = ref.read(brainDumpProvider);
+        final item = items.where((i) => i.id == block.brainDumpItemId).firstOrNull;
+        if (item != null && item.isChecked) {
+          await ref.read(brainDumpProvider.notifier).toggle(block.brainDumpItemId!);
+        }
+      }
       if (mounted) Navigator.pop(context);
     } catch (e) {
       _showError('삭제 중 오류가 발생했습니다: $e');

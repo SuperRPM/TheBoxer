@@ -39,6 +39,10 @@ class TimeboxBlock extends HiveObject {
   @HiveField(7)
   String? routineId;
 
+  /// 브레인덤핑에서 배치된 경우 해당 항목 ID (삭제 시 미완료 복구용)
+  @HiveField(8)
+  String? brainDumpItemId;
+
   TimeboxBlock({
     required this.id,
     required this.date,
@@ -48,6 +52,7 @@ class TimeboxBlock extends HiveObject {
     this.description,
     this.categoryId,
     this.routineId,
+    this.brainDumpItemId,
   }) : assert(startMinute < endMinute, 'startMinute must be before endMinute'),
        assert(startMinute >= 0 && endMinute <= 1440, 'Minutes must be within 0–1440');
 
@@ -63,6 +68,7 @@ class TimeboxBlock extends HiveObject {
     String? description,
     String? categoryId,
     String? routineId,
+    String? brainDumpItemId,
   }) {
     return TimeboxBlock(
       id: id ?? this.id,
@@ -73,6 +79,7 @@ class TimeboxBlock extends HiveObject {
       description: description ?? this.description,
       categoryId: categoryId ?? this.categoryId,
       routineId: routineId ?? this.routineId,
+      brainDumpItemId: brainDumpItemId ?? this.brainDumpItemId,
     );
   }
 

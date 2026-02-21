@@ -37,7 +37,6 @@ class _TimeboxCalendarWidgetState
     extends ConsumerState<TimeboxCalendarWidget> {
   static const int _startHour = AppConstants.dayStartMinute ~/ 60; // 5
   static const int _endHour = AppConstants.dayEndMinute ~/ 60;     // 24
-  static const double _labelWidth = 52.0;
   static const double _rowHeight = 56.0;
 
   // 배치 모드 내부 상태: 시작 시간 선택 완료 여부
@@ -106,7 +105,6 @@ class _TimeboxCalendarWidgetState
           colsPerHour: colsPerHour,
           intervalMin: intervalMin,
           rowHeight: _rowHeight,
-          labelWidth: _labelWidth,
           blocks: blocks,
           isColorMode: isColorMode,
           isLast: hour == _endHour - 1,
@@ -128,7 +126,6 @@ class _HourRow extends StatelessWidget {
   final int colsPerHour;
   final int intervalMin;
   final double rowHeight;
-  final double labelWidth;
   final List<TimeboxBlock> blocks;
   final bool isColorMode;
   final bool isLast;
@@ -143,7 +140,6 @@ class _HourRow extends StatelessWidget {
     required this.colsPerHour,
     required this.intervalMin,
     required this.rowHeight,
-    required this.labelWidth,
     required this.blocks,
     required this.isColorMode,
     required this.isLast,
@@ -177,102 +173,90 @@ class _HourRow extends StatelessWidget {
           bottom: BorderSide(color: majorColor, width: isLast ? 0 : 1.0),
         ),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 시간 레이블
-          SizedBox(
-            width: labelWidth,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 8, top: 4),
-              child: Align(
-                alignment: Alignment.topRight,
+      child: LayoutBuilder(
+        builder: (ctx, constraints) {
+          final totalW = constraints.maxWidth;
+          final cellW = totalW / colsPerHour;
+
+          return Stack(
+            children: [
+              // 수직 구분선 (sub-interval 구분)
+              ...List.generate(colsPerHour - 1, (colIdx) {
+                return Positioned(
+                  left: cellW * (colIdx + 1),
+                  top: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 0.5,
+                    color: minorColor,
+                  ),
+                );
+              }),
+
+              // 시간 레이블 (첫 번째 셀 좌상단 오버레이)
+              Positioned(
+                left: 3,
+                top: 2,
                 child: Text(
                   hourLabel,
                   style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey[600],
+                    fontSize: 10,
+                    color: Colors.grey[500],
+                    fontWeight: FontWeight.w400,
                   ),
                 ),
               ),
-            ),
-          ),
 
-          // 그리드 영역 (배경 + 블록 오버레이)
-          Expanded(
-            child: LayoutBuilder(
-              builder: (ctx, constraints) {
-                final totalW = constraints.maxWidth;
-                final cellW = totalW / colsPerHour;
+              // 배치 모드: 시작 시간 선택 셀 하이라이트
+              if (isPlacementMode && placementStartMinute != null)
+                ..._buildPlacementHighlight(hStart, totalW),
 
-                return Stack(
-                  children: [
-                    // 수직 구분선 (sub-interval 구분)
-                    ...List.generate(colsPerHour - 1, (colIdx) {
-                      return Positioned(
-                        left: cellW * (colIdx + 1),
-                        top: 0,
-                        bottom: 0,
-                        child: Container(
-                          width: 0.5,
-                          color: minorColor,
-                        ),
-                      );
-                    }),
-
-                    // 배치 모드: 시작 시간 선택 셀 하이라이트
-                    if (isPlacementMode && placementStartMinute != null)
-                      ..._buildPlacementHighlight(hStart, totalW),
-
-                    // 탭 감지 셀
-                    Row(
-                      children: List.generate(colsPerHour, (colIdx) {
-                        final cellStart = hStart + colIdx * intervalMin;
-                        return Expanded(
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.translucent,
-                            onTap: () => onTapCell(cellStart),
-                            child: const SizedBox.expand(),
-                          ),
-                        );
-                      }),
+              // 탭 감지 셀
+              Row(
+                children: List.generate(colsPerHour, (colIdx) {
+                  final cellStart = hStart + colIdx * intervalMin;
+                  return Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTap: () => onTapCell(cellStart),
+                      child: const SizedBox.expand(),
                     ),
+                  );
+                }),
+              ),
 
-                    // 블록 세그먼트
-                    ..._overlapping.map((block) {
-                      final segStart = max(block.startMinute, hStart);
-                      final segEnd = min(block.endMinute, hStart + 60);
-                      final startFrac = (segStart - hStart) / 60.0;
-                      final endFrac = (segEnd - hStart) / 60.0;
+              // 블록 세그먼트
+              ..._overlapping.map((block) {
+                final segStart = max(block.startMinute, hStart);
+                final segEnd = min(block.endMinute, hStart + 60);
+                final startFrac = (segStart - hStart) / 60.0;
+                final endFrac = (segEnd - hStart) / 60.0;
 
-                      final left = startFrac * totalW;
-                      final width = (endFrac - startFrac) * totalW;
-                      final isFirst = block.startMinute >= hStart;
-                      final isLast2 = block.endMinute <= hStart + 60;
+                final left = startFrac * totalW;
+                final width = (endFrac - startFrac) * totalW;
+                final isFirst = block.startMinute >= hStart;
+                final isLast2 = block.endMinute <= hStart + 60;
 
-                      return Positioned(
-                        left: left + 1,
-                        top: 3,
-                        width: width - 2,
-                        height: rowHeight - 6,
-                        child: GestureDetector(
-                          onTap: () => onTapBlock(block),
-                          child: _BlockSegment(
-                            block: block,
-                            isColorMode: isColorMode,
-                            showTitle: isFirst,
-                            isFirst: isFirst,
-                            isLast: isLast2,
-                          ),
-                        ),
-                      );
-                    }),
-                  ],
+                return Positioned(
+                  left: left + 1,
+                  top: 3,
+                  width: width - 2,
+                  height: rowHeight - 6,
+                  child: GestureDetector(
+                    onTap: () => onTapBlock(block),
+                    child: _BlockSegment(
+                      block: block,
+                      isColorMode: isColorMode,
+                      showTitle: isFirst,
+                      isFirst: isFirst,
+                      isLast: isLast2,
+                    ),
+                  ),
                 );
-              },
-            ),
-          ),
-        ],
+              }),
+            ],
+          );
+        },
       ),
     );
   }
