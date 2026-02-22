@@ -46,18 +46,20 @@ class _TimeboxCalendarWidgetState
     final placement = ref.read(placementProvider);
 
     if (placement == null) {
-      // 일반 모드: 타임박스 생성 화면 열기
+      // 일반 모드: 배치 시트 열기
       widget.onTapToCreate(cellMinute);
       return;
     }
 
-    // 배치 모드
-    if (_placementStartMinute == null) {
+    // 배치 모드: 로컬 상태 또는 provider에 미리 설정된 시작 시간 사용
+    final effectiveStartMinute = _placementStartMinute ?? placement.startMinute;
+
+    if (effectiveStartMinute == null) {
       // 첫 번째 탭: 시작 시간 설정
       setState(() => _placementStartMinute = cellMinute);
     } else {
       // 두 번째 탭: 종료 시간 결정
-      final startMinute = _placementStartMinute!;
+      final startMinute = effectiveStartMinute;
       final timeUnit = ref.read(timeUnitProvider);
       final intervalMin = timeUnit.minuteInterval;
 
@@ -110,7 +112,7 @@ class _TimeboxCalendarWidgetState
           isColorMode: isColorMode,
           isLast: hour == _endHour - 1,
           isPlacementMode: placement != null,
-          placementStartMinute: _placementStartMinute,
+          placementStartMinute: _placementStartMinute ?? placement?.startMinute,
           onTapCell: _handleCellTap,
           onTapBlock: placement == null ? widget.onTapBlock : (_) {}, // 배치 모드 중 블록 탭 비활성
         );

@@ -13,11 +13,13 @@ class AppConstants {
   static const String categoryBoxName = 'categories';
   static const String routineBoxName = 'routines';
   static const String weeklyPlanBoxName = 'weekly_plans';
+  static const String brainDumpBoxName = 'brain_dumps';
   static const String settingsBoxName = 'settings';
 
   /// 설정 키
   static const String themeSettingKey = 'is_color_mode';
   static const String timeUnitSettingKey = 'time_unit';
+  static const String lastBrainDumpResetKey = 'last_brain_dump_reset';
 
   /// 기본 카테고리 색상 팔레트 (Color.value 형태)
   static const List<int> defaultCategoryColors = [

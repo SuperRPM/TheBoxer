@@ -145,7 +145,8 @@ class _HomeContent extends ConsumerWidget {
           Expanded(
             child: TimeboxCalendarWidget(
               selectedDate: selectedDate,
-              onTapToCreate: (_) {}, // 빈 셀 탭으로 일정 생성 비활성화 (브레인덤핑에서만)
+              onTapToCreate: (startMinute) =>
+                  _showPlacementSheet(context, ref, initialStartMinute: startMinute),
               onTapBlock: (b) => TimeboxScreen.showEdit(context, block: b),
               onPlacementComplete: (start, end) =>
                   _handlePlacementComplete(context, ref, selectedDate, start, end),
@@ -198,7 +199,7 @@ class _HomeContent extends ConsumerWidget {
   }
 
   /// 브레인덤핑 + 루틴 목록 바텀시트
-  void _showPlacementSheet(BuildContext context, WidgetRef ref) {
+  void _showPlacementSheet(BuildContext context, WidgetRef ref, {int? initialStartMinute}) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -207,12 +208,14 @@ class _HomeContent extends ConsumerWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (sheetCtx) => _PlacementSheet(
+        initialStartMinute: initialStartMinute,
         onBrainDumpSelected: (item) {
           Navigator.pop(sheetCtx);
           ref.read(placementProvider.notifier).startPlacement(
             itemId: item.id,
             title: item.content,
             type: PendingItemType.brainDump,
+            initialStartMinute: initialStartMinute,
           );
         },
         onRoutineSelected: (routine) {
@@ -222,6 +225,7 @@ class _HomeContent extends ConsumerWidget {
             title: routine.title,
             description: routine.description,
             type: PendingItemType.routine,
+            initialStartMinute: initialStartMinute,
           );
         },
       ),
@@ -344,11 +348,13 @@ class _PlacementBanner extends StatelessWidget {
 class _PlacementSheet extends ConsumerStatefulWidget {
   final void Function(BrainDumpItem) onBrainDumpSelected;
   final void Function(Routine) onRoutineSelected;
+  final int? initialStartMinute;
 
   const _PlacementSheet({
     Key? key,
     required this.onBrainDumpSelected,
     required this.onRoutineSelected,
+    this.initialStartMinute,
   }) : super(key: key);
 
   @override
@@ -378,7 +384,22 @@ class _PlacementSheetState extends ConsumerState<_PlacementSheet> {
   Widget build(BuildContext context) {
     final brainItems = ref.watch(brainDumpProvider);
     final routinesAsync = ref.watch(routinesProvider);
+    final selectedDate = ref.watch(selectedDateProvider);
+    final blocksAsync = ref.watch(timeboxNotifierProvider(selectedDate));
     final pending = brainItems.where((i) => !i.isChecked).toList();
+
+    // 오늘 시간표에 이미 등록된 루틴 ID 목록
+    final scheduledRoutineIds = blocksAsync.when(
+      data: (blocks) =>
+          blocks.where((b) => b.routineId != null).map((b) => b.routineId!).toSet(),
+      loading: () => <String>{},
+      error: (_, __) => <String>{},
+    );
+
+    // 타이틀: 셀 탭으로 열린 경우 시작 시간 표시
+    final sheetTitle = widget.initialStartMinute != null
+        ? '${TimeUtils.minutesToTimeString(widget.initialStartMinute!)}부터 배치할 항목 선택'
+        : '캘린더에 배치할 항목 선택';
 
     return DraggableScrollableSheet(
       expand: false,
@@ -403,11 +424,12 @@ class _PlacementSheetState extends ConsumerState<_PlacementSheet> {
                 children: [
                   const Icon(Icons.inbox_outlined, size: 20),
                   const SizedBox(width: 8),
-                  const Text(
-                    '캘린더에 배치할 항목 선택',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  Expanded(
+                    child: Text(
+                      sheetTitle,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
                   ),
-                  const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.close),
                     onPressed: () => Navigator.pop(ctx),
@@ -458,21 +480,24 @@ class _PlacementSheetState extends ConsumerState<_PlacementSheet> {
 
                   const Divider(height: 24),
 
-                  // 루틴 섹션
+                  // 루틴 섹션 (오늘 이미 배치된 루틴 제외)
                   routinesAsync.when(
                     data: (routines) {
+                      final available = routines
+                          .where((r) => !scheduledRoutineIds.contains(r.id))
+                          .toList();
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _SectionHeader(
                             icon: Icons.repeat,
                             title: '루틴',
-                            count: routines.length,
+                            count: available.length,
                           ),
-                          if (routines.isEmpty)
-                            const _EmptySection(message: '등록된 루틴이 없습니다.')
+                          if (available.isEmpty)
+                            const _EmptySection(message: '배치 가능한 루틴이 없습니다.')
                           else
-                            ...routines.map((routine) => ListTile(
+                            ...available.map((routine) => ListTile(
                                   leading: const Icon(Icons.repeat,
                                       size: 18, color: Colors.blueGrey),
                                   title: Text(routine.title,
@@ -579,7 +604,7 @@ class _WeeklyGoalBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final planAsync = ref.watch(currentWeeklyPlanProvider);
+    final planAsync = ref.watch(weeklyPlanNotifierProvider);
     return planAsync.when(
       data: (plan) {
         final content = plan?.content.trim() ?? '';

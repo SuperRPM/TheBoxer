@@ -12,6 +12,11 @@ class BrainDumpNotifier extends StateNotifier<List<BrainDumpItem>> {
   final HiveBrainDumpRepository _repo;
 
   BrainDumpNotifier(this._repo) : super([]) {
+    _initWithReset();
+  }
+
+  Future<void> _initWithReset() async {
+    await _repo.clearAllIfNewDay();
     _load();
   }
 

@@ -1,6 +1,7 @@
 import 'package:hive/hive.dart';
 import 'package:timebox_planner/core/constants/app_constants.dart';
 import 'package:timebox_planner/data/models/brain_dump_item.dart';
+import 'package:timebox_planner/utils/time_utils.dart';
 
 /// Hive 기반 브레인 덤핑 저장소
 class HiveBrainDumpRepository {
@@ -38,5 +39,17 @@ class HiveBrainDumpRepository {
     if (item == null) return;
     item.isStarred = !item.isStarred;
     await item.save();
+  }
+
+  /// 날짜가 바뀌었으면 모든 항목 삭제 (다음날 초기화)
+  Future<void> clearAllIfNewDay() async {
+    final settingsBox = Hive.box<dynamic>(AppConstants.settingsBoxName);
+    final today = TimeUtils.dateOnly(DateTime.now());
+    final todayKey = '${today.year}-${today.month}-${today.day}';
+    final lastReset = settingsBox.get(AppConstants.lastBrainDumpResetKey, defaultValue: '') as String;
+    if (lastReset != todayKey) {
+      await _box.clear();
+      await settingsBox.put(AppConstants.lastBrainDumpResetKey, todayKey);
+    }
   }
 }

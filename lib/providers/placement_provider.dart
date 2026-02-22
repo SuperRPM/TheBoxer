@@ -38,12 +38,14 @@ class PlacementNotifier extends StateNotifier<PendingPlacement?> {
     required String title,
     String? description,
     required PendingItemType type,
+    int? initialStartMinute,
   }) {
     state = PendingPlacement(
       itemId: itemId,
       title: title,
       description: description,
       type: type,
+      startMinute: initialStartMinute,
     );
   }
 
