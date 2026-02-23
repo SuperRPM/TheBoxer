@@ -105,10 +105,6 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
       appBar: AppBar(
         title: _DateNavigator(
           selectedDate: selectedDate,
-          onPrev: () => ref.read(selectedDateProvider.notifier).state =
-              selectedDate.subtract(const Duration(days: 1)),
-          onNext: () => ref.read(selectedDateProvider.notifier).state =
-              selectedDate.add(const Duration(days: 1)),
           onPickDate: (date) =>
               ref.read(selectedDateProvider.notifier).state = date,
           isToday: isToday,
@@ -782,15 +778,12 @@ class _InboxItem extends StatelessWidget {
 // ─────────────────────────────────────────────
 class _DateNavigator extends StatelessWidget {
   final DateTime selectedDate;
-  final VoidCallback onPrev, onNext;
   final void Function(DateTime) onPickDate;
   final bool isToday;
 
   const _DateNavigator({
     Key? key,
     required this.selectedDate,
-    required this.onPrev,
-    required this.onNext,
     required this.onPickDate,
     required this.isToday,
   }) : super(key: key);
@@ -811,61 +804,42 @@ class _DateNavigator extends StatelessWidget {
     final weekday = weekdays[selectedDate.weekday - 1];
     final label = '${selectedDate.month}월 ${selectedDate.day}일 ($weekday)';
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          icon: const Icon(Icons.chevron_left, color: Colors.white),
-          onPressed: onPrev,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 32),
-        ),
-        GestureDetector(
-          onTap: () => _openPicker(context),
-          child: Column(
+    return GestureDetector(
+      onTap: () => _openPicker(context),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(Icons.calendar_month_outlined,
-                      size: 14, color: Colors.white70),
-                ],
+              Text(
+                label,
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white),
               ),
-              if (!isToday)
-                GestureDetector(
-                  onTap: () =>
-                      onPickDate(TimeUtils.dateOnly(DateTime.now())),
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.25),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Text('오늘로',
-                        style: TextStyle(fontSize: 10, color: Colors.white)),
-                  ),
-                ),
+              const SizedBox(width: 4),
+              const Icon(Icons.calendar_month_outlined,
+                  size: 14, color: Colors.white70),
             ],
           ),
-        ),
-        IconButton(
-          icon: const Icon(Icons.chevron_right, color: Colors.white),
-          onPressed: onNext,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 32),
-        ),
-      ],
+          if (!isToday)
+            GestureDetector(
+              onTap: () => onPickDate(TimeUtils.dateOnly(DateTime.now())),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.25),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Text('오늘로',
+                    style: TextStyle(fontSize: 10, color: Colors.white)),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

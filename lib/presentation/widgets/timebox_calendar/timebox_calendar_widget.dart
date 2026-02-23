@@ -347,8 +347,6 @@ class _BlockSegment extends StatelessWidget {
   Widget build(BuildContext context) {
     final base = isColorMode ? _baseColor : _toGray(_baseColor);
     final bgColor = base.withOpacity(compactMode ? 0.55 : 0.18);
-    final effectiveText =
-        bgColor.computeLuminance() > 0.5 ? Colors.black87 : Colors.white;
 
     return Container(
       decoration: BoxDecoration(
@@ -368,15 +366,15 @@ class _BlockSegment extends StatelessWidget {
       child: compactMode
           ? null
           : (showTitle
-              ? Align(
-                  alignment: Alignment.centerLeft,
+              ? Center(
                   child: Text(
                     block.title,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
-                      color: effectiveText,
+                      color: Colors.black87,
                     ),
+                    textAlign: TextAlign.center,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
