@@ -15,7 +15,7 @@ class Routine extends HiveObject {
   @HiveField(1)
   String title;
 
-  /// 기본 지속 시간 (분) - 더 이상 사용되지 않음, Hive 호환성 유지
+  /// 반복 횟수 저장용 (durationMinutes 필드 재활용, Hive 호환성 유지)
   @HiveField(2)
   int durationMinutes;
 
@@ -25,6 +25,9 @@ class Routine extends HiveObject {
 
   @HiveField(4)
   String? description;
+
+  /// 하루에 시간표에 등록 가능한 횟수 (기본값 1)
+  int get repeatCount => durationMinutes <= 0 ? 1 : durationMinutes;
 
   Routine({
     required this.id,

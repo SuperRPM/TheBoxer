@@ -72,16 +72,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 // ─────────────────────────────────────────────
 // 홈 탭 본문
 // ─────────────────────────────────────────────
-class _HomeContent extends ConsumerWidget {
+class _HomeContent extends ConsumerStatefulWidget {
   const _HomeContent({Key? key}) : super(key: key);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_HomeContent> createState() => _HomeContentState();
+}
+
+class _HomeContentState extends ConsumerState<_HomeContent> {
+  bool _isOverviewMode = false;
+  bool _isSplitView = false;
+
+  @override
+  Widget build(BuildContext context) {
     final selectedDate = ref.watch(selectedDateProvider);
     final timeUnit = ref.watch(timeUnitProvider);
     final isColorMode = ref.watch(themeProvider);
     final isToday = TimeUtils.isToday(selectedDate);
     final placement = ref.watch(placementProvider);
+
+    final calendarWidget = TimeboxCalendarWidget(
+      selectedDate: selectedDate,
+      onTapToCreate: (startMinute) =>
+          _showPlacementSheet(initialStartMinute: startMinute),
+      onTapBlock: (b) => TimeboxScreen.showEdit(context, block: b),
+      onPlacementComplete: (start, end) =>
+          _handlePlacementComplete(selectedDate, start, end),
+      isOverviewMode: _isOverviewMode,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -111,11 +129,26 @@ class _HomeContent extends ConsumerWidget {
             tooltip: isColorMode ? '흑백 모드' : '컬러 모드',
             onPressed: () => ref.read(themeProvider.notifier).toggle(),
           ),
-          // 브레인덤핑 빠른 추가 버튼
+          // 한눈에 보기 (오버뷰) 버튼
           IconButton(
-            icon: const Icon(Icons.bolt, size: 22),
-            tooltip: '브레인덤핑 추가',
-            onPressed: () => _showBrainDumpQuickAdd(context, ref),
+            icon: Icon(
+              _isOverviewMode
+                  ? Icons.view_list_outlined
+                  : Icons.view_compact_outlined,
+              size: 22,
+            ),
+            tooltip: _isOverviewMode ? '스크롤 보기' : '한눈에 보기',
+            onPressed: () =>
+                setState(() => _isOverviewMode = !_isOverviewMode),
+          ),
+          // 스플릿 뷰 버튼
+          IconButton(
+            icon: Icon(
+              _isSplitView ? Icons.view_agenda_outlined : Icons.vertical_split,
+              size: 22,
+            ),
+            tooltip: _isSplitView ? '일반 보기' : '스플릿 뷰',
+            onPressed: () => setState(() => _isSplitView = !_isSplitView),
           ),
         ],
       ),
@@ -123,42 +156,62 @@ class _HomeContent extends ConsumerWidget {
         onTap: () => FocusScope.of(context).unfocus(),
         behavior: HitTestBehavior.translucent,
         child: Column(
-        children: [
-          // 배치 모드 배너
-          if (placement != null)
-            _PlacementBanner(
-              placement: placement,
-              onCancel: () =>
-                  ref.read(placementProvider.notifier).clearPlacement(),
+          children: [
+            // 배치 모드 배너
+            if (placement != null)
+              _PlacementBanner(
+                placement: placement,
+                onCancel: () =>
+                    ref.read(placementProvider.notifier).clearPlacement(),
+              ),
+
+            // 주간 목표 (한 줄 바)
+            const _WeeklyGoalBar(),
+
+            // 스플릿 뷰가 아닐 때만 인박스 스트립 표시
+            if (!_isSplitView)
+              _BrainDumpInboxStrip(selectedDate: selectedDate),
+
+            // 구분선
+            const Divider(height: 1),
+
+            // 캘린더 (스플릿 뷰: 좌우 분할)
+            Expanded(
+              child: _isSplitView
+                  ? Row(
+                      children: [
+                        Expanded(flex: 3, child: calendarWidget),
+                        const VerticalDivider(width: 1, thickness: 1),
+                        SizedBox(
+                          width: 160,
+                          child: _SplitViewTaskPanel(
+                            selectedDate: selectedDate,
+                            onBrainDumpSelected: (item) =>
+                                ref.read(placementProvider.notifier).startPlacement(
+                                  itemId: item.id,
+                                  title: item.content,
+                                  type: PendingItemType.brainDump,
+                                ),
+                            onRoutineSelected: (routine) =>
+                                ref.read(placementProvider.notifier).startPlacement(
+                                  itemId: routine.id,
+                                  title: routine.title,
+                                  description: routine.description,
+                                  type: PendingItemType.routine,
+                                ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : calendarWidget,
             ),
-
-          // 주간 목표 (한 줄 바)
-          const _WeeklyGoalBar(),
-
-          // 브레인덤프 인박스 스트립 (미완료 항목 목록, 접기/펼치기)
-          _BrainDumpInboxStrip(selectedDate: selectedDate),
-
-          // 구분선
-          const Divider(height: 1),
-
-          // 캘린더 (남은 공간 모두 사용)
-          Expanded(
-            child: TimeboxCalendarWidget(
-              selectedDate: selectedDate,
-              onTapToCreate: (startMinute) =>
-                  _showPlacementSheet(context, ref, initialStartMinute: startMinute),
-              onTapBlock: (b) => TimeboxScreen.showEdit(context, block: b),
-              onPlacementComplete: (start, end) =>
-                  _handlePlacementComplete(context, ref, selectedDate, start, end),
-            ),
-          ),
-        ],
+          ],
         ),
       ),
-      // FAB: 브레인덤핑 + 루틴 목록 보기 (배치 모드 진입)
+      // FAB: 배치 모드가 아닐 때만 표시
       floatingActionButton: placement == null
           ? FloatingActionButton(
-              onPressed: () => _showPlacementSheet(context, ref),
+              onPressed: _showPlacementSheet,
               tooltip: '할 일 목록',
               child: const Icon(Icons.inbox),
             )
@@ -166,10 +219,7 @@ class _HomeContent extends ConsumerWidget {
     );
   }
 
-  /// 배치 완료: 타임박스 생성 + 브레인덤프 체크
   Future<void> _handlePlacementComplete(
-    BuildContext context,
-    WidgetRef ref,
     DateTime date,
     int startMinute,
     int endMinute,
@@ -184,13 +234,14 @@ class _HomeContent extends ConsumerWidget {
       endMinute: endMinute,
       title: placement.title,
       description: placement.description,
-      routineId: placement.type == PendingItemType.routine ? placement.itemId : null,
-      brainDumpItemId: placement.type == PendingItemType.brainDump ? placement.itemId : null,
+      routineId:
+          placement.type == PendingItemType.routine ? placement.itemId : null,
+      brainDumpItemId:
+          placement.type == PendingItemType.brainDump ? placement.itemId : null,
     );
 
     await ref.read(timeboxNotifierProvider(date).notifier).addBlock(block);
 
-    // 브레인덤프 항목이면 완료 처리
     if (placement.type == PendingItemType.brainDump) {
       await ref.read(brainDumpProvider.notifier).toggle(placement.itemId);
     }
@@ -198,8 +249,7 @@ class _HomeContent extends ConsumerWidget {
     ref.read(placementProvider.notifier).clearPlacement();
   }
 
-  /// 브레인덤핑 + 루틴 목록 바텀시트
-  void _showPlacementSheet(BuildContext context, WidgetRef ref, {int? initialStartMinute}) {
+  void _showPlacementSheet({int? initialStartMinute}) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -228,49 +278,6 @@ class _HomeContent extends ConsumerWidget {
             initialStartMinute: initialStartMinute,
           );
         },
-      ),
-    );
-  }
-
-  /// 브레인덤핑 빠른 추가 다이얼로그
-  void _showBrainDumpQuickAdd(BuildContext context, WidgetRef ref) {
-    final ctrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('브레인덤핑 추가'),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: '생각을 입력하세요...',
-            border: OutlineInputBorder(),
-          ),
-          textInputAction: TextInputAction.done,
-          onSubmitted: (_) {
-            final text = ctrl.text.trim();
-            if (text.isNotEmpty) {
-              ref.read(brainDumpProvider.notifier).add(text);
-            }
-            Navigator.pop(ctx);
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final text = ctrl.text.trim();
-              if (text.isNotEmpty) {
-                ref.read(brainDumpProvider.notifier).add(text);
-              }
-              Navigator.pop(ctx);
-            },
-            child: const Text('추가'),
-          ),
-        ],
       ),
     );
   }
@@ -388,12 +395,19 @@ class _PlacementSheetState extends ConsumerState<_PlacementSheet> {
     final blocksAsync = ref.watch(timeboxNotifierProvider(selectedDate));
     final pending = brainItems.where((i) => !i.isChecked).toList();
 
-    // 오늘 시간표에 이미 등록된 루틴 ID 목록
-    final scheduledRoutineIds = blocksAsync.when(
-      data: (blocks) =>
-          blocks.where((b) => b.routineId != null).map((b) => b.routineId!).toSet(),
-      loading: () => <String>{},
-      error: (_, __) => <String>{},
+    // 오늘 시간표에 등록된 루틴별 횟수 집계
+    final scheduledRoutineCounts = blocksAsync.when(
+      data: (blocks) {
+        final counts = <String, int>{};
+        for (final b in blocks) {
+          if (b.routineId != null) {
+            counts[b.routineId!] = (counts[b.routineId!] ?? 0) + 1;
+          }
+        }
+        return counts;
+      },
+      loading: () => <String, int>{},
+      error: (_, __) => <String, int>{},
     );
 
     // 타이틀: 셀 탭으로 열린 경우 시작 시간 표시
@@ -483,9 +497,11 @@ class _PlacementSheetState extends ConsumerState<_PlacementSheet> {
                   // 루틴 섹션 (오늘 이미 배치된 루틴 제외)
                   routinesAsync.when(
                     data: (routines) {
-                      final available = routines
-                          .where((r) => !scheduledRoutineIds.contains(r.id))
-                          .toList();
+                      final available = routines.where((r) {
+                        final scheduled =
+                            scheduledRoutineCounts[r.id] ?? 0;
+                        return scheduled < r.repeatCount;
+                      }).toList();
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -866,6 +882,162 @@ class _TimeUnitDropdown extends StatelessWidget {
                     style: const TextStyle(fontSize: 14)),
               ))
           .toList(),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// 스플릿 뷰 오른쪽 패널: 태스크 목록
+// ─────────────────────────────────────────────
+class _SplitViewTaskPanel extends ConsumerWidget {
+  final DateTime selectedDate;
+  final void Function(BrainDumpItem) onBrainDumpSelected;
+  final void Function(Routine) onRoutineSelected;
+
+  const _SplitViewTaskPanel({
+    Key? key,
+    required this.selectedDate,
+    required this.onBrainDumpSelected,
+    required this.onRoutineSelected,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final brainItems = ref.watch(brainDumpProvider);
+    final routinesAsync = ref.watch(routinesProvider);
+    final blocksAsync = ref.watch(timeboxNotifierProvider(selectedDate));
+    final pending = brainItems.where((i) => !i.isChecked).toList();
+
+    final scheduledRoutineCounts = blocksAsync.when(
+      data: (blocks) {
+        final counts = <String, int>{};
+        for (final b in blocks) {
+          if (b.routineId != null) {
+            counts[b.routineId!] = (counts[b.routineId!] ?? 0) + 1;
+          }
+        }
+        return counts;
+      },
+      loading: () => <String, int>{},
+      error: (_, __) => <String, int>{},
+    );
+
+    final primaryColor = Theme.of(context).primaryColor;
+
+    return Container(
+      color: Theme.of(context).colorScheme.surface,
+      child: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        children: [
+          // 브레인덤핑 섹션
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 2),
+            child: Row(
+              children: [
+                Icon(Icons.lightbulb_outline, size: 13, color: primaryColor),
+                const SizedBox(width: 4),
+                Text('브레인덤핑',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: primaryColor)),
+              ],
+            ),
+          ),
+          if (pending.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              child: Text('없음',
+                  style: TextStyle(color: Colors.grey, fontSize: 11)),
+            )
+          else
+            ...pending.map((item) => InkWell(
+                  onTap: () => onBrainDumpSelected(item),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.circle_outlined,
+                            size: 10, color: Colors.grey),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(item.content,
+                              style: const TextStyle(fontSize: 12),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                      ],
+                    ),
+                  ),
+                )),
+
+          const Divider(height: 16),
+
+          // 루틴 섹션
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 2),
+            child: Row(
+              children: [
+                Icon(Icons.repeat, size: 13, color: primaryColor),
+                const SizedBox(width: 4),
+                Text('루틴',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: primaryColor)),
+              ],
+            ),
+          ),
+          routinesAsync.when(
+            data: (routines) {
+              final available = routines.where((r) {
+                final scheduled = scheduledRoutineCounts[r.id] ?? 0;
+                return scheduled < r.repeatCount;
+              }).toList();
+              if (available.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  child: Text('없음',
+                      style: TextStyle(color: Colors.grey, fontSize: 11)),
+                );
+              }
+              return Column(
+                children: available
+                    .map((r) => InkWell(
+                          onTap: () => onRoutineSelected(r),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 5),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.repeat,
+                                    size: 12, color: Colors.blueGrey),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(r.title,
+                                      style: const TextStyle(fontSize: 12),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ))
+                    .toList(),
+              );
+            },
+            loading: () => const Padding(
+              padding: EdgeInsets.all(8),
+              child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2)),
+            ),
+            error: (_, __) => const SizedBox(),
+          ),
+        ],
+      ),
     );
   }
 }

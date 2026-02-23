@@ -148,12 +148,10 @@ class _RoutineCard extends StatelessWidget {
             routine.title,
             style: const TextStyle(fontWeight: FontWeight.w600),
           ),
-          subtitle: routine.description != null
+          subtitle: routine.repeatCount > 1
               ? Text(
-                  routine.description!,
-                  style: const TextStyle(fontSize: 12),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                  '반복 ${routine.repeatCount}회',
+                  style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
                 )
               : null,
           trailing: IconButton(
@@ -180,7 +178,7 @@ class _RoutineDialog extends ConsumerStatefulWidget {
 class _RoutineDialogState extends ConsumerState<_RoutineDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _titleCtrl;
-  late final TextEditingController _descCtrl;
+  int _repeatCount = 1;
   bool _isLoading = false;
 
   bool get _isEdit => widget.existing != null;
@@ -190,13 +188,12 @@ class _RoutineDialogState extends ConsumerState<_RoutineDialog> {
     super.initState();
     final r = widget.existing;
     _titleCtrl = TextEditingController(text: r?.title ?? '');
-    _descCtrl = TextEditingController(text: r?.description ?? '');
+    _repeatCount = r?.repeatCount ?? 1;
   }
 
   @override
   void dispose() {
     _titleCtrl.dispose();
-    _descCtrl.dispose();
     super.dispose();
   }
 
@@ -207,9 +204,7 @@ class _RoutineDialogState extends ConsumerState<_RoutineDialog> {
       final routine = Routine(
         id: widget.existing?.id ?? const Uuid().v4(),
         title: _titleCtrl.text.trim(),
-        description: _descCtrl.text.trim().isEmpty
-            ? null
-            : _descCtrl.text.trim(),
+        durationMinutes: _repeatCount,
       );
       final notifier = ref.read(routineNotifierProvider.notifier);
       if (_isEdit) {
@@ -275,16 +270,34 @@ class _RoutineDialogState extends ConsumerState<_RoutineDialog> {
               ),
               const SizedBox(height: 12),
 
-              // 설명 (선택)
-              TextFormField(
-                controller: _descCtrl,
-                decoration: const InputDecoration(
-                  labelText: '설명 (선택)',
-                  hintText: '루틴에 대한 설명을 입력하세요',
-                ),
-                maxLines: 2,
-                textInputAction: TextInputAction.done,
-                onFieldSubmitted: (_) => _save(),
+              // 반복 횟수
+              Row(
+                children: [
+                  const Text('반복 횟수',
+                      style: TextStyle(fontSize: 14, color: Colors.black87)),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.remove_circle_outline),
+                    onPressed: _repeatCount > 1
+                        ? () => setState(() => _repeatCount--)
+                        : null,
+                    color: Colors.blueGrey,
+                  ),
+                  SizedBox(
+                    width: 32,
+                    child: Text(
+                      '$_repeatCount',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.add_circle_outline),
+                    onPressed: () => setState(() => _repeatCount++),
+                    color: Colors.blueGrey,
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
 

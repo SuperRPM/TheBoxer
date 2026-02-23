@@ -7,18 +7,17 @@ import 'package:timebox_planner/data/models/timebox_block.dart';
 import 'package:timebox_planner/providers/placement_provider.dart';
 import 'package:timebox_planner/providers/theme_provider.dart';
 import 'package:timebox_planner/providers/timebox_provider.dart';
-import 'package:timebox_planner/utils/time_utils.dart';
 
 /// 타임박스 캘린더 (그리드 레이아웃)
 ///
 /// 1시간 = 1행(Row), 행 안에서 TimeUnit 단위로 열(Column) 분할.
-/// 배치 모드: pendingPlacement != null 일 때 두 번의 탭으로 시간 범위 지정.
+/// isOverviewMode: true이면 스크롤 없이 전체 하루를 한 화면에 표시.
 class TimeboxCalendarWidget extends ConsumerStatefulWidget {
   final DateTime selectedDate;
   final void Function(int startMinute) onTapToCreate;
   final void Function(TimeboxBlock block) onTapBlock;
-  /// 배치 모드에서 시간 범위 확정 시 호출 (startMinute, endMinute)
   final void Function(int startMinute, int endMinute)? onPlacementComplete;
+  final bool isOverviewMode;
 
   const TimeboxCalendarWidget({
     Key? key,
@@ -26,6 +25,7 @@ class TimeboxCalendarWidget extends ConsumerStatefulWidget {
     required this.onTapToCreate,
     required this.onTapBlock,
     this.onPlacementComplete,
+    this.isOverviewMode = false,
   }) : super(key: key);
 
   @override
@@ -39,33 +39,26 @@ class _TimeboxCalendarWidgetState
   static const int _endHour = AppConstants.dayEndMinute ~/ 60;     // 24
   static const double _rowHeight = 56.0;
 
-  // 배치 모드 내부 상태: 시작 시간 선택 완료 여부
   int? _placementStartMinute;
 
   void _handleCellTap(int cellMinute) {
     final placement = ref.read(placementProvider);
 
     if (placement == null) {
-      // 일반 모드: 배치 시트 열기
       widget.onTapToCreate(cellMinute);
       return;
     }
 
-    // 배치 모드: 로컬 상태 또는 provider에 미리 설정된 시작 시간 사용
     final effectiveStartMinute = _placementStartMinute ?? placement.startMinute;
 
     if (effectiveStartMinute == null) {
-      // 첫 번째 탭: 시작 시간 설정
       setState(() => _placementStartMinute = cellMinute);
     } else {
-      // 두 번째 탭: 종료 시간 결정
       final startMinute = effectiveStartMinute;
       final timeUnit = ref.read(timeUnitProvider);
       final intervalMin = timeUnit.minuteInterval;
 
-      // 탭한 셀을 포함하도록 해당 셀의 끝 시간을 종료 시간으로 사용
       int endMinute = cellMinute + intervalMin;
-      // 종료 시간은 시작 시간보다 최소 1 TimeUnit 이후여야 함
       if (endMinute <= startMinute) {
         endMinute = startMinute + intervalMin;
       }
@@ -84,6 +77,7 @@ class _TimeboxCalendarWidgetState
 
     final colsPerHour = 60 ~/ timeUnit.minuteInterval;
     final intervalMin = timeUnit.minuteInterval;
+    final totalHours = _endHour - _startHour;
 
     final blocks = blocksAsync.when(
       data: (b) => b,
@@ -91,31 +85,50 @@ class _TimeboxCalendarWidgetState
       error: (_, __) => <TimeboxBlock>[],
     );
 
-    // 배치 모드가 해제되면 내부 시작 시간 초기화
     ref.listen<PendingPlacement?>(placementProvider, (prev, next) {
       if (next == null && _placementStartMinute != null) {
         setState(() => _placementStartMinute = null);
       }
     });
 
+    _HourRow buildRow(int hour, double rowH, bool compactMode) {
+      return _HourRow(
+        hour: hour,
+        colsPerHour: colsPerHour,
+        intervalMin: intervalMin,
+        rowHeight: rowH,
+        blocks: blocks,
+        isColorMode: isColorMode,
+        isLast: hour == _endHour - 1,
+        isPlacementMode: placement != null,
+        placementStartMinute: _placementStartMinute ?? placement?.startMinute,
+        onTapCell: _handleCellTap,
+        onTapBlock: placement == null ? widget.onTapBlock : (_) {},
+        compactMode: compactMode,
+      );
+    }
+
+    if (widget.isOverviewMode) {
+      return LayoutBuilder(
+        builder: (ctx, constraints) {
+          final rowH = constraints.maxHeight / totalHours;
+          final compactMode = rowH < 22;
+          return Column(
+            children: List.generate(totalHours, (idx) {
+              final hour = _startHour + idx;
+              return SizedBox(height: rowH, child: buildRow(hour, rowH, compactMode));
+            }),
+          );
+        },
+      );
+    }
+
     return ListView.builder(
       padding: EdgeInsets.zero,
-      itemCount: _endHour - _startHour,
+      itemCount: totalHours,
       itemBuilder: (ctx, idx) {
         final hour = _startHour + idx;
-        return _HourRow(
-          hour: hour,
-          colsPerHour: colsPerHour,
-          intervalMin: intervalMin,
-          rowHeight: _rowHeight,
-          blocks: blocks,
-          isColorMode: isColorMode,
-          isLast: hour == _endHour - 1,
-          isPlacementMode: placement != null,
-          placementStartMinute: _placementStartMinute ?? placement?.startMinute,
-          onTapCell: _handleCellTap,
-          onTapBlock: placement == null ? widget.onTapBlock : (_) {}, // 배치 모드 중 블록 탭 비활성
-        );
+        return buildRow(hour, _rowHeight, false);
       },
     );
   }
@@ -136,6 +149,7 @@ class _HourRow extends StatelessWidget {
   final int? placementStartMinute;
   final void Function(int) onTapCell;
   final void Function(TimeboxBlock) onTapBlock;
+  final bool compactMode;
 
   const _HourRow({
     Key? key,
@@ -150,6 +164,7 @@ class _HourRow extends StatelessWidget {
     required this.placementStartMinute,
     required this.onTapCell,
     required this.onTapBlock,
+    this.compactMode = false,
   }) : super(key: key);
 
   List<TimeboxBlock> get _overlapping {
@@ -183,34 +198,32 @@ class _HourRow extends StatelessWidget {
 
           return Stack(
             children: [
-              // 수직 구분선 (sub-interval 구분)
+              // 수직 구분선
               ...List.generate(colsPerHour - 1, (colIdx) {
                 return Positioned(
                   left: cellW * (colIdx + 1),
                   top: 0,
                   bottom: 0,
-                  child: Container(
-                    width: 0.5,
-                    color: minorColor,
-                  ),
+                  child: Container(width: 0.5, color: minorColor),
                 );
               }),
 
-              // 시간 레이블 (첫 번째 셀 좌상단 오버레이)
-              Positioned(
-                left: 3,
-                top: 2,
-                child: Text(
-                  hourLabel,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey[500],
-                    fontWeight: FontWeight.w400,
+              // 시간 레이블 (컴팩트 모드에서는 숨김)
+              if (!compactMode)
+                Positioned(
+                  left: 3,
+                  top: 2,
+                  child: Text(
+                    hourLabel,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[800],
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
 
-              // 배치 모드: 시작 시간 선택 셀 하이라이트
+              // 배치 모드 하이라이트
               if (isPlacementMode && placementStartMinute != null)
                 ..._buildPlacementHighlight(hStart, totalW),
 
@@ -242,9 +255,9 @@ class _HourRow extends StatelessWidget {
 
                 return Positioned(
                   left: left + 1,
-                  top: 3,
+                  top: compactMode ? 1 : 3,
                   width: width - 2,
-                  height: rowHeight - 6,
+                  height: rowHeight - (compactMode ? 2 : 6),
                   child: GestureDetector(
                     onTap: () => onTapBlock(block),
                     child: _BlockSegment(
@@ -253,6 +266,7 @@ class _HourRow extends StatelessWidget {
                       showTitle: isFirst,
                       isFirst: isFirst,
                       isLast: isLast2,
+                      compactMode: compactMode,
                     ),
                   ),
                 );
@@ -267,8 +281,6 @@ class _HourRow extends StatelessWidget {
   List<Widget> _buildPlacementHighlight(int hStart, double totalW) {
     final start = placementStartMinute!;
     final hEnd = hStart + 60;
-
-    // 시작 시간이 이 행에 속하는지 확인
     if (start < hStart || start >= hEnd) return [];
 
     final startFrac = (start - hStart) / 60.0;
@@ -283,13 +295,15 @@ class _HourRow extends StatelessWidget {
         bottom: 0,
         child: Container(
           color: Colors.blue.withOpacity(0.25),
-          child: const Align(
-            alignment: Alignment.centerLeft,
-            child: Padding(
-              padding: EdgeInsets.only(left: 4),
-              child: Icon(Icons.arrow_drop_down, size: 16, color: Colors.blue),
-            ),
-          ),
+          child: compactMode
+              ? null
+              : const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: EdgeInsets.only(left: 4),
+                    child: Icon(Icons.arrow_drop_down, size: 16, color: Colors.blue),
+                  ),
+                ),
         ),
       ),
     ];
@@ -297,14 +311,14 @@ class _HourRow extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────
-// 블록 세그먼트 (행 안에 수평으로 표시)
+// 블록 세그먼트
 // ─────────────────────────────────────────────
 const _kBlockPalette = [
-  Color(0xFF7D1128), // 버건디
-  Color(0xFF1A5276), // 딥 블루
-  Color(0xFF1D6A41), // 딥 그린
-  Color(0xFF784212), // 번트 오렌지
-  Color(0xFF4A235A), // 딥 퍼플
+  Color(0xFF7D1128),
+  Color(0xFF1A5276),
+  Color(0xFF1D6A41),
+  Color(0xFF784212),
+  Color(0xFF4A235A),
 ];
 
 class _BlockSegment extends StatelessWidget {
@@ -313,6 +327,7 @@ class _BlockSegment extends StatelessWidget {
   final bool showTitle;
   final bool isFirst;
   final bool isLast;
+  final bool compactMode;
 
   const _BlockSegment({
     Key? key,
@@ -321,6 +336,7 @@ class _BlockSegment extends StatelessWidget {
     required this.showTitle,
     required this.isFirst,
     required this.isLast,
+    this.compactMode = false,
   }) : super(key: key);
 
   Color get _baseColor {
@@ -329,16 +345,10 @@ class _BlockSegment extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base = isColorMode
-        ? _baseColor
-        : _toGray(_baseColor);
-
-    final bgColor = base.withOpacity(0.18);
+    final base = isColorMode ? _baseColor : _toGray(_baseColor);
+    final bgColor = base.withOpacity(compactMode ? 0.55 : 0.18);
     final effectiveText =
         bgColor.computeLuminance() > 0.5 ? Colors.black87 : Colors.white;
-
-    final startLabel = TimeUtils.minutesToTimeString(block.startMinute);
-    final endLabel = TimeUtils.minutesToTimeString(block.endMinute);
 
     return Container(
       decoration: BoxDecoration(
@@ -350,39 +360,34 @@ class _BlockSegment extends StatelessWidget {
           bottom: BorderSide(color: base, width: isLast ? 2.0 : 1.0),
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      padding: compactMode
+          ? EdgeInsets.zero
+          : const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       clipBehavior: Clip.hardEdge,
-      child: showTitle
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  block.title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: effectiveText,
+      // 컴팩트 모드: 색상 블록만 (텍스트 없음)
+      child: compactMode
+          ? null
+          : (showTitle
+              ? Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    block.title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: effectiveText,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  '$startLabel–$endLabel',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: effectiveText.withOpacity(0.75),
+                )
+              : Center(
+                  child: Container(
+                    width: 20,
+                    height: 2,
+                    color: base.withOpacity(0.6),
                   ),
-                ),
-              ],
-            )
-          : Center(
-              child: Container(
-                width: 20,
-                height: 2,
-                color: base.withOpacity(0.6),
-              ),
-            ),
+                )),
     );
   }
 
