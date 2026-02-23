@@ -41,8 +41,9 @@ class TimeboxBlockWidget extends StatelessWidget {
         ColorUtils.blockBackgroundColor(rawColor, isColorMode: isColorMode);
     final borderColor =
         ColorUtils.blockBorderColor(rawColor, isColorMode: isColorMode);
-    final textColor = ColorUtils.adaptiveColor(rawColor, isColorMode: isColorMode)
-        .withOpacity(0.9);
+    final textColor = isColorMode
+        ? Colors.black87
+        : ColorUtils.adaptiveColor(rawColor, isColorMode: false).withOpacity(0.9);
 
     final top = (block.startMinute - startMinute) * pixelsPerMinute;
     final height = block.durationMinutes * pixelsPerMinute;
@@ -98,16 +99,19 @@ class TimeboxBlockWidget extends StatelessWidget {
   }) {
     // 높이에 따라 표시 내용 조정
     if (height < 28) {
-      // 매우 좁음: 제목만
-      return Text(
-        block.title,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: textColor,
-          overflow: TextOverflow.ellipsis,
+      // 매우 좁음: 제목만 (가운데 정렬)
+      return Center(
+        child: Text(
+          block.title,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: textColor,
+            overflow: TextOverflow.ellipsis,
+          ),
+          textAlign: TextAlign.center,
+          maxLines: 1,
         ),
-        maxLines: 1,
       );
     }
 
@@ -124,6 +128,7 @@ class TimeboxBlockWidget extends StatelessWidget {
                 color: textColor,
                 overflow: TextOverflow.ellipsis,
               ),
+              textAlign: TextAlign.center,
               maxLines: 1,
             ),
           ),
@@ -141,7 +146,7 @@ class TimeboxBlockWidget extends StatelessWidget {
 
     // 넉넉한 높이: 제목 + 시간범위 + 카테고리명
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Text(
           block.title,
@@ -151,6 +156,7 @@ class TimeboxBlockWidget extends StatelessWidget {
             color: textColor,
             overflow: TextOverflow.ellipsis,
           ),
+          textAlign: TextAlign.center,
           maxLines: 2,
         ),
         const SizedBox(height: 2),
@@ -160,6 +166,7 @@ class TimeboxBlockWidget extends StatelessWidget {
             fontSize: 11,
             color: textColor.withOpacity(0.8),
           ),
+          textAlign: TextAlign.center,
         ),
         if (category != null) ...[
           const SizedBox(height: 2),
@@ -170,6 +177,7 @@ class TimeboxBlockWidget extends StatelessWidget {
               color: textColor.withOpacity(0.7),
               fontStyle: FontStyle.italic,
             ),
+            textAlign: TextAlign.center,
             overflow: TextOverflow.ellipsis,
             maxLines: 1,
           ),

@@ -95,7 +95,7 @@ class _TimeboxScreenState extends ConsumerState<TimeboxScreen> {
       _startMinute = widget.initialStartMinute ?? 540;
       // 기본 종료 시간 = 시작 + 현재 TimeUnit 단위
       final timeUnit = ref.read(timeUnitProvider);
-      _endMinute = _startMinute + timeUnit.minuteInterval;
+      _endMinute = _startMinute + (timeUnit.minuteInterval);
     }
   }
 
@@ -207,7 +207,7 @@ class _TimeboxScreenState extends ConsumerState<TimeboxScreen> {
       if (isStart) {
         _startMinute = picked;
         if (_endMinute <= _startMinute) {
-          _endMinute = _startMinute + timeUnit.minuteInterval;
+          _endMinute = _startMinute + (timeUnit.minuteInterval);
         }
       } else {
         _endMinute = picked;
@@ -581,3 +581,4 @@ class _WheelItem extends StatelessWidget {
     );
   }
 }
+

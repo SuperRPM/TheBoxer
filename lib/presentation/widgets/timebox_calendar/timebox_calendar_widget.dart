@@ -396,3 +396,5 @@ class _BlockSegment extends StatelessWidget {
     return Color.fromARGB(c.alpha, l, l, l);
   }
 }
+
+

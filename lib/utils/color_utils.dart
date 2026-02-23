@@ -26,11 +26,12 @@ class ColorUtils {
   /// 카테고리 블록의 배경색 (반투명)
   static Color blockBackgroundColor(Color categoryColor, {required bool isColorMode}) {
     final base = adaptiveColor(categoryColor, isColorMode: isColorMode);
-    return base.withOpacity(0.25);
+    return base.withOpacity(isColorMode ? 0.38 : 0.25);
   }
 
   /// 카테고리 블록의 테두리색
   static Color blockBorderColor(Color categoryColor, {required bool isColorMode}) {
-    return adaptiveColor(categoryColor, isColorMode: isColorMode).withOpacity(0.8);
+    return adaptiveColor(categoryColor, isColorMode: isColorMode)
+        .withOpacity(isColorMode ? 1.0 : 0.8);
   }
 }

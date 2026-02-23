@@ -46,7 +46,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           NavigationDestination(
             icon: Icon(Icons.today_outlined),
             selectedIcon: Icon(Icons.today),
-            label: '오늘',
+            label: '시간표',
           ),
           NavigationDestination(
             icon: Icon(Icons.lightbulb_outline),
@@ -109,8 +109,8 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
               selectedDate.subtract(const Duration(days: 1)),
           onNext: () => ref.read(selectedDateProvider.notifier).state =
               selectedDate.add(const Duration(days: 1)),
-          onToday: () => ref.read(selectedDateProvider.notifier).state =
-              TimeUtils.dateOnly(DateTime.now()),
+          onPickDate: (date) =>
+              ref.read(selectedDateProvider.notifier).state = date,
           isToday: isToday,
         ),
         actions: [
@@ -782,7 +782,8 @@ class _InboxItem extends StatelessWidget {
 // ─────────────────────────────────────────────
 class _DateNavigator extends StatelessWidget {
   final DateTime selectedDate;
-  final VoidCallback onPrev, onNext, onToday;
+  final VoidCallback onPrev, onNext;
+  final void Function(DateTime) onPickDate;
   final bool isToday;
 
   const _DateNavigator({
@@ -790,9 +791,19 @@ class _DateNavigator extends StatelessWidget {
     required this.selectedDate,
     required this.onPrev,
     required this.onNext,
-    required this.onToday,
+    required this.onPickDate,
     required this.isToday,
   }) : super(key: key);
+
+  Future<void> _openPicker(BuildContext context) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+    if (picked != null) onPickDate(picked);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -811,30 +822,40 @@ class _DateNavigator extends StatelessWidget {
           constraints: const BoxConstraints(minWidth: 32),
         ),
         GestureDetector(
-          onTap: onToday,
-          child: Row(
+          onTap: () => _openPicker(context),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                label,
-                style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white),
-              ),
-              if (!isToday) ...[
-                const SizedBox(width: 4),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.25),
-                    borderRadius: BorderRadius.circular(10),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white),
                   ),
-                  child: const Text('오늘로',
-                      style: TextStyle(fontSize: 10, color: Colors.white)),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.calendar_month_outlined,
+                      size: 14, color: Colors.white70),
+                ],
+              ),
+              if (!isToday)
+                GestureDetector(
+                  onTap: () =>
+                      onPickDate(TimeUtils.dateOnly(DateTime.now())),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.25),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text('오늘로',
+                        style: TextStyle(fontSize: 10, color: Colors.white)),
+                  ),
                 ),
-              ],
             ],
           ),
         ),
@@ -924,24 +945,69 @@ class _SplitViewTaskPanel extends ConsumerWidget {
 
     final primaryColor = Theme.of(context).primaryColor;
 
+    void showAddBrainDumpDialog() {
+      final ctrl = TextEditingController();
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('브레인덤핑 추가', style: TextStyle(fontSize: 16)),
+          content: TextField(
+            controller: ctrl,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: '내용을 입력하세요',
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+            onSubmitted: (v) {
+              if (v.trim().isNotEmpty) {
+                ref.read(brainDumpProvider.notifier).add(v.trim());
+                Navigator.pop(ctx);
+              }
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('취소'),
+            ),
+            TextButton(
+              onPressed: () {
+                if (ctrl.text.trim().isNotEmpty) {
+                  ref.read(brainDumpProvider.notifier).add(ctrl.text.trim());
+                  Navigator.pop(ctx);
+                }
+              },
+              child: const Text('추가'),
+            ),
+          ],
+        ),
+      ).then((_) => ctrl.dispose());
+    }
+
     return Container(
       color: Theme.of(context).colorScheme.surface,
       child: ListView(
         padding: const EdgeInsets.symmetric(vertical: 4),
         children: [
           // 브레인덤핑 섹션
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 2),
-            child: Row(
-              children: [
-                Icon(Icons.lightbulb_outline, size: 13, color: primaryColor),
-                const SizedBox(width: 4),
-                Text('브레인덤핑',
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: primaryColor)),
-              ],
+          InkWell(
+            onTap: showAddBrainDumpDialog,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 2),
+              child: Row(
+                children: [
+                  Icon(Icons.lightbulb_outline, size: 13, color: primaryColor),
+                  const SizedBox(width: 4),
+                  Text('브레인덤핑',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: primaryColor)),
+                  const Spacer(),
+                  Icon(Icons.add, size: 14, color: primaryColor),
+                ],
+              ),
             ),
           ),
           if (pending.isEmpty)
