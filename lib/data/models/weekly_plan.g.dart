@@ -20,7 +20,7 @@ class WeeklyPlanAdapter extends TypeAdapter<WeeklyPlan> {
       id: fields[0] as String,
       weekStartDate: fields[1] as DateTime,
       content: fields[2] as String,
-      goals: (fields[3] as List).cast<String>(),
+      goals: (fields[3] as List?)?.cast<String>(),
     );
   }
 

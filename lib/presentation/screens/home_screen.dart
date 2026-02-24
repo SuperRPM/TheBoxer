@@ -150,6 +150,18 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
       ),
       body: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
+        onHorizontalDragEnd: (details) {
+          final v = details.primaryVelocity ?? 0;
+          if (v < -300) {
+            // 왼쪽 스와이프 → 다음 날
+            ref.read(selectedDateProvider.notifier).state =
+                selectedDate.add(const Duration(days: 1));
+          } else if (v > 300) {
+            // 오른쪽 스와이프 → 이전 날
+            ref.read(selectedDateProvider.notifier).state =
+                selectedDate.subtract(const Duration(days: 1));
+          }
+        },
         behavior: HitTestBehavior.translucent,
         child: Column(
           children: [

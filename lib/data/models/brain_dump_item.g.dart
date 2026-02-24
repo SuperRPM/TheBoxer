@@ -21,7 +21,7 @@ class BrainDumpItemAdapter extends TypeAdapter<BrainDumpItem> {
       content: fields[1] as String,
       isChecked: fields[2] as bool,
       createdAt: fields[3] as DateTime,
-      isStarred: fields[4] as bool? ?? false,
+      isStarred: fields[4] as bool,
     );
   }
 
