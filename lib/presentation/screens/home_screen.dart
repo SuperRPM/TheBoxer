@@ -11,6 +11,7 @@ import 'package:timebox_planner/providers/routine_provider.dart';
 import 'package:timebox_planner/providers/theme_provider.dart';
 import 'package:timebox_planner/providers/timebox_provider.dart';
 import 'package:timebox_planner/providers/weekly_plan_provider.dart';
+import 'package:timebox_planner/presentation/screens/settings_screen.dart';
 import 'package:timebox_planner/presentation/screens/timebox_screen.dart';
 import 'package:timebox_planner/presentation/screens/weekly_plan_screen.dart';
 import 'package:timebox_planner/presentation/screens/routine_screen.dart';
@@ -35,6 +36,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       const BrainDumpScreen(),
       const WeeklyPlanScreen(),
       const RoutineScreen(),
+      const SettingsScreen(),
     ];
 
     return Scaffold(
@@ -62,6 +64,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             icon: Icon(Icons.repeat_outlined),
             selectedIcon: Icon(Icons.repeat),
             label: '루틴',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.settings_outlined),
+            selectedIcon: Icon(Icons.settings),
+            label: '설정',
           ),
         ],
       ),
@@ -968,7 +975,9 @@ class _SplitViewTaskPanel extends ConsumerWidget {
             ),
           ],
         ),
-      ).then((_) => ctrl.dispose());
+      ).then((_) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => ctrl.dispose());
+      });
     }
 
     return Container(

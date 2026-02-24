@@ -7,20 +7,20 @@ import 'package:timebox_planner/presentation/screens/timebox_screen.dart';
 import 'package:timebox_planner/presentation/screens/weekly_plan_screen.dart';
 import 'package:timebox_planner/providers/theme_provider.dart';
 
-/// 앱 루트 위젯
-///
-/// ProviderScope는 main.dart에서 감싸므로, 여기서는 ConsumerWidget 사용.
 class TimeboxPlannerApp extends ConsumerWidget {
   const TimeboxPlannerApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isColorMode = ref.watch(themeProvider);
+    final themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp(
       title: '타임박스 플래너',
       debugShowCheckedModeBanner: false,
+      themeMode: themeMode,
       theme: isColorMode ? AppTheme.colorTheme : AppTheme.monoTheme,
+      darkTheme: isColorMode ? AppTheme.colorDarkTheme : AppTheme.monoDarkTheme,
       initialRoute: '/',
       routes: {
         '/': (context) => const HomeScreen(),

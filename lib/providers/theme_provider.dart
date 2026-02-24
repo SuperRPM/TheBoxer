@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:timebox_planner/core/constants/app_constants.dart';
@@ -28,3 +29,28 @@ class ThemeNotifier extends StateNotifier<bool> {
 final themeProvider = StateNotifierProvider<ThemeNotifier, bool>(
   (ref) => ThemeNotifier(),
 );
+
+// ── 다크 모드 Provider ─────────────────────────────────
+class DarkModeNotifier extends StateNotifier<bool> {
+  DarkModeNotifier() : super(_load());
+
+  static bool _load() {
+    final box = Hive.box<dynamic>(AppConstants.settingsBoxName);
+    return box.get('dark_mode', defaultValue: false) as bool;
+  }
+
+  Future<void> toggle() async {
+    state = !state;
+    await Hive.box<dynamic>(AppConstants.settingsBoxName).put('dark_mode', state);
+  }
+}
+
+final darkModeProvider = StateNotifierProvider<DarkModeNotifier, bool>(
+  (ref) => DarkModeNotifier(),
+);
+
+/// 현재 활성 ThemeMode 반환
+final themeModeProvider = Provider<ThemeMode>((ref) {
+  final isDark = ref.watch(darkModeProvider);
+  return isDark ? ThemeMode.dark : ThemeMode.light;
+});

@@ -19,8 +19,8 @@ class TimeUnitNotifier extends StateNotifier<TimeUnit> {
 
   static TimeUnit _loadFromHive() {
     final box = Hive.box<dynamic>(AppConstants.settingsBoxName);
-    final saved = box.get(AppConstants.timeUnitSettingKey, defaultValue: 0) as int;
-    if (saved < 0 || saved >= TimeUnit.values.length) return TimeUnit.oneHour;
+    final saved = box.get(AppConstants.timeUnitSettingKey, defaultValue: -1) as int;
+    if (saved < 0 || saved >= TimeUnit.values.length) return TimeUnit.tenMinutes;
     return TimeUnit.values[saved];
   }
 
