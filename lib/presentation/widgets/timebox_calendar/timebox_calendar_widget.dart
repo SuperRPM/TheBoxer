@@ -313,12 +313,26 @@ class _HourRow extends StatelessWidget {
 // ─────────────────────────────────────────────
 // 블록 세그먼트
 // ─────────────────────────────────────────────
-const _kBlockPalette = [
-  Color(0xFF7D1128),
-  Color(0xFF1A5276),
-  Color(0xFF1D6A41),
-  Color(0xFF784212),
-  Color(0xFF4A235A),
+/// 루틴용 파스텔 색상 팔레트 (쿨 톤)
+const _kRoutinePalette = [
+  Color(0xFFADD8E6), // 파스텔 블루
+  Color(0xFF90EE90), // 파스텔 그린
+  Color(0xFFDDA0DD), // 파스텔 플럼
+  Color(0xFF87CEEB), // 파스텔 스카이
+  Color(0xFFB0E0E6), // 파스텔 파우더블루
+  Color(0xFFAFEEEE), // 파스텔 터쿼이즈
+  Color(0xFFE6E6FA), // 파스텔 라벤더
+  Color(0xFF98FB98), // 파스텔 페일그린
+];
+
+/// 태스크용 파스텔 색상 팔레트 (웜 톤)
+const _kTaskPalette = [
+  Color(0xFFFFDAB9), // 파스텔 피치
+  Color(0xFFFFB6C1), // 파스텔 핑크
+  Color(0xFFFFFACD), // 파스텔 레몬
+  Color(0xFFFFE4B5), // 파스텔 모카신
+  Color(0xFFFFC0CB), // 파스텔 로즈
+  Color(0xFFFFDEAD), // 파스텔 나바호
 ];
 
 class _BlockSegment extends StatelessWidget {
@@ -340,13 +354,23 @@ class _BlockSegment extends StatelessWidget {
   }) : super(key: key);
 
   Color get _baseColor {
-    return _kBlockPalette[block.id.hashCode.abs() % _kBlockPalette.length];
+    if (block.routineId != null) {
+      // 루틴: routineId 기반 고정 색상
+      return _kRoutinePalette[block.routineId!.hashCode.abs() % _kRoutinePalette.length];
+    } else {
+      // 태스크: brainDumpItemId 또는 id 기반 색상
+      final key = block.brainDumpItemId ?? block.id;
+      return _kTaskPalette[key.hashCode.abs() % _kTaskPalette.length];
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final base = isColorMode ? _baseColor : _toGray(_baseColor);
-    final bgColor = base.withOpacity(compactMode ? 0.55 : 0.18);
+    final bgOpacity = compactMode ? 0.85 : 0.65;
+    final bgColor = base.withOpacity(bgOpacity);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white.withOpacity(0.87) : Colors.black87;
 
     return Container(
       decoration: BoxDecoration(
@@ -362,17 +386,16 @@ class _BlockSegment extends StatelessWidget {
           ? EdgeInsets.zero
           : const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       clipBehavior: Clip.hardEdge,
-      // 컴팩트 모드: 색상 블록만 (텍스트 없음)
       child: compactMode
           ? null
           : (showTitle
               ? Center(
                   child: Text(
                     block.title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
-                      color: Colors.black87,
+                      color: textColor,
                     ),
                     textAlign: TextAlign.center,
                     maxLines: 1,

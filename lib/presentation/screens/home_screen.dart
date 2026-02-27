@@ -8,12 +8,10 @@ import 'package:timebox_planner/data/models/timebox_block.dart';
 import 'package:timebox_planner/providers/brain_dump_provider.dart';
 import 'package:timebox_planner/providers/placement_provider.dart';
 import 'package:timebox_planner/providers/routine_provider.dart';
-import 'package:timebox_planner/providers/theme_provider.dart';
 import 'package:timebox_planner/providers/timebox_provider.dart';
 import 'package:timebox_planner/providers/weekly_plan_provider.dart';
 import 'package:timebox_planner/presentation/screens/settings_screen.dart';
 import 'package:timebox_planner/presentation/screens/timebox_screen.dart';
-import 'package:timebox_planner/presentation/screens/weekly_plan_screen.dart';
 import 'package:timebox_planner/presentation/screens/routine_screen.dart';
 import 'package:timebox_planner/presentation/screens/brain_dump_screen.dart';
 import 'package:timebox_planner/presentation/widgets/timebox_calendar/timebox_calendar_widget.dart';
@@ -34,7 +32,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final pages = [
       const _HomeContent(),
       const BrainDumpScreen(),
-      const WeeklyPlanScreen(),
       const RoutineScreen(),
       const SettingsScreen(),
     ];
@@ -51,14 +48,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             label: '시간표',
           ),
           NavigationDestination(
-            icon: Icon(Icons.lightbulb_outline),
-            selectedIcon: Icon(Icons.lightbulb),
-            label: '브레인덤핑',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.view_week_outlined),
-            selectedIcon: Icon(Icons.view_week),
-            label: '주간',
+            icon: Icon(Icons.task_outlined),
+            selectedIcon: Icon(Icons.task),
+            label: '태스크',
           ),
           NavigationDestination(
             icon: Icon(Icons.repeat_outlined),
@@ -94,7 +86,6 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
   Widget build(BuildContext context) {
     final selectedDate = ref.watch(selectedDateProvider);
     final timeUnit = ref.watch(timeUnitProvider);
-    final isColorMode = ref.watch(themeProvider);
     final isToday = TimeUtils.isToday(selectedDate);
     final placement = ref.watch(placementProvider);
 
@@ -123,14 +114,6 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
               selected: timeUnit,
               onChanged: (u) => ref.read(timeUnitProvider.notifier).setUnit(u),
             ),
-          ),
-          IconButton(
-            icon: Icon(
-              isColorMode ? Icons.palette_outlined : Icons.invert_colors,
-              size: 22,
-            ),
-            tooltip: isColorMode ? '흑백 모드' : '컬러 모드',
-            onPressed: () => ref.read(themeProvider.notifier).toggle(),
           ),
           // 한눈에 보기 (오버뷰) 버튼
           IconButton(
@@ -180,8 +163,8 @@ class _HomeContentState extends ConsumerState<_HomeContent> {
                     ref.read(placementProvider.notifier).clearPlacement(),
               ),
 
-            // 주간 목표 (한 줄 바)
-            const _WeeklyGoalBar(),
+            // 메모 (한 줄 바, 탭하면 편집)
+            const _MemoBar(),
 
             // 스플릿 뷰가 아닐 때만 인박스 스트립 표시
             if (!_isSplitView)
@@ -427,8 +410,8 @@ class _PlacementSheetState extends ConsumerState<_PlacementSheet> {
 
     // 타이틀: 셀 탭으로 열린 경우 시작 시간 표시
     final sheetTitle = widget.initialStartMinute != null
-        ? '${TimeUtils.minutesToTimeString(widget.initialStartMinute!)}부터 배치할 항목 선택'
-        : '캘린더에 배치할 항목 선택';
+        ? '${TimeUtils.minutesToTimeString(widget.initialStartMinute!)}부터 배치할 태스크 선택'
+        : '캘린더에 배치할 태스크 선택';
 
     return DraggableScrollableSheet(
       expand: false,
@@ -466,14 +449,14 @@ class _PlacementSheetState extends ConsumerState<_PlacementSheet> {
                 ],
               ),
             ),
-            // 브레인덤핑 빠른 입력창
+            // 태스크 빠른 입력창
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: TextField(
                 controller: _inputCtrl,
                 focusNode: _focusNode,
                 decoration: const InputDecoration(
-                  hintText: '새 항목 추가...',
+                  hintText: '새 태스크 추가...',
                   border: OutlineInputBorder(),
                   contentPadding:
                       EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -489,14 +472,14 @@ class _PlacementSheetState extends ConsumerState<_PlacementSheet> {
               child: ListView(
                 controller: scrollCtrl,
                 children: [
-                  // 브레인덤핑 섹션
+                  // 태스크 섹션
                   _SectionHeader(
-                    icon: Icons.lightbulb_outline,
-                    title: '브레인덤핑',
+                    icon: Icons.task_outlined,
+                    title: '태스크',
                     count: pending.length,
                   ),
                   if (pending.isEmpty)
-                    const _EmptySection(message: '미완료 항목이 없습니다.')
+                    const _EmptySection(message: '태스크가 없습니다.')
                   else
                     ...pending.map((item) => ListTile(
                           leading: const Icon(Icons.circle_outlined, size: 14),
@@ -628,10 +611,10 @@ class _EmptySection extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────
-// 주간 목표 — 한 줄 심플 바
+// 메모 바 — 탭하면 편집 가능
 // ─────────────────────────────────────────────
-class _WeeklyGoalBar extends ConsumerWidget {
-  const _WeeklyGoalBar({Key? key}) : super(key: key);
+class _MemoBar extends ConsumerWidget {
+  const _MemoBar({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -639,28 +622,84 @@ class _WeeklyGoalBar extends ConsumerWidget {
     return planAsync.when(
       data: (plan) {
         final content = plan?.content.trim() ?? '';
-        if (content.isEmpty) return const SizedBox.shrink();
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          decoration: BoxDecoration(
-            border: Border(
-              left: BorderSide(
-                color: Theme.of(context).primaryColor,
-                width: 3,
+        return GestureDetector(
+          onTap: () => _showMemoDialog(context, ref, plan),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            decoration: BoxDecoration(
+              border: Border(
+                left: BorderSide(
+                  color: Theme.of(context).primaryColor,
+                  width: 3,
+                ),
               ),
+              color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.2),
             ),
-            color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.2),
-          ),
-          child: Text(
-            '🎯 $content',
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            child: Row(
+              children: [
+                Icon(Icons.note_alt_outlined, size: 13,
+                    color: Theme.of(context).primaryColor),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    content.isEmpty ? '메모 추가...' : content,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight:
+                          content.isEmpty ? FontWeight.w400 : FontWeight.w500,
+                      color: content.isEmpty ? Colors.grey : null,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Icon(Icons.edit_outlined,
+                    size: 12, color: Colors.grey.shade400),
+              ],
+            ),
           ),
         );
       },
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
     );
+  }
+
+  Future<void> _showMemoDialog(
+      BuildContext context, WidgetRef ref, dynamic plan) async {
+    final ctrl = TextEditingController(text: plan?.content ?? '');
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('메모'),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 5,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: '메모를 입력하세요',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () async {
+              await ref
+                  .read(weeklyPlanNotifierProvider.notifier)
+                  .saveMemo(ctrl.text.trim(), plan);
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('저장'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
   }
 }
 
@@ -943,7 +982,7 @@ class _SplitViewTaskPanel extends ConsumerWidget {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('브레인덤핑 추가', style: TextStyle(fontSize: 16)),
+          title: const Text('태스크 추가', style: TextStyle(fontSize: 16)),
           content: TextField(
             controller: ctrl,
             autofocus: true,
@@ -985,16 +1024,16 @@ class _SplitViewTaskPanel extends ConsumerWidget {
       child: ListView(
         padding: const EdgeInsets.symmetric(vertical: 4),
         children: [
-          // 브레인덤핑 섹션
+          // 태스크 섹션
           InkWell(
             onTap: showAddBrainDumpDialog,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 2),
               child: Row(
                 children: [
-                  Icon(Icons.lightbulb_outline, size: 13, color: primaryColor),
+                  Icon(Icons.task_outlined, size: 13, color: primaryColor),
                   const SizedBox(width: 4),
-                  Text('브레인덤핑',
+                  Text('태스크',
                       style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,

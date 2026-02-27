@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:timebox_planner/data/models/brain_dump_item.dart';
 import 'package:timebox_planner/providers/brain_dump_provider.dart';
-import 'package:timebox_planner/providers/placement_provider.dart';
 
-/// 브레인 덤핑 화면
+/// 태스크 화면
 class BrainDumpScreen extends ConsumerStatefulWidget {
   const BrainDumpScreen({Key? key}) : super(key: key);
 
@@ -31,34 +30,20 @@ class _BrainDumpScreenState extends ConsumerState<BrainDumpScreen> {
     _focusNode.requestFocus();
   }
 
-  void _startPlacement(BuildContext context, BrainDumpItem item) {
-    ref.read(placementProvider.notifier).startPlacement(
-      itemId: item.id,
-      title: item.content,
-      type: PendingItemType.brainDump,
-    );
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('"${item.content}" — 오늘 탭에서 시간을 선택하세요'),
-        duration: const Duration(seconds: 3),
-        action: SnackBarAction(label: '확인', onPressed: () {}),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final items = ref.watch(brainDumpProvider);
-    final starred = items.where((i) => i.isStarred).toList();
-    final pending = items.where((i) => !i.isChecked && !i.isStarred).toList();
-    final checked = items.where((i) => i.isChecked && !i.isStarred).toList();
+    final starred = items.where((i) => i.isStarred && !i.isCancelled).toList();
+    final pending = items.where((i) => !i.isChecked && !i.isStarred && !i.isCancelled).toList();
+    final checked = items.where((i) => i.isChecked && !i.isStarred && !i.isCancelled).toList();
+    final cancelled = items.where((i) => i.isCancelled).toList();
 
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       behavior: HitTestBehavior.translucent,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('브레인 덤핑'),
+          title: const Text('태스크'),
           centerTitle: false,
         ),
         body: Column(
@@ -97,6 +82,9 @@ class _BrainDumpScreenState extends ConsumerState<BrainDumpScreen> {
                                 onToggleStar: () => ref
                                     .read(brainDumpProvider.notifier)
                                     .toggleStar(item.id),
+                                onCancel: () => ref
+                                    .read(brainDumpProvider.notifier)
+                                    .cancel(item.id),
                               )),
                           const Divider(height: 8),
                         ],
@@ -121,6 +109,9 @@ class _BrainDumpScreenState extends ConsumerState<BrainDumpScreen> {
                                 onToggleStar: () => ref
                                     .read(brainDumpProvider.notifier)
                                     .toggleStar(item.id),
+                                onCancel: () => ref
+                                    .read(brainDumpProvider.notifier)
+                                    .cancel(item.id),
                               )),
                         ],
 
@@ -142,6 +133,24 @@ class _BrainDumpScreenState extends ConsumerState<BrainDumpScreen> {
                                     .read(brainDumpProvider.notifier)
                                     .delete(item.id),
                                 onToggleStar: null,
+                                onCancel: null,
+                              )),
+                        ],
+
+                        // ── 취소 목록 ──
+                        if (cancelled.isNotEmpty) ...[
+                          const Divider(height: 8),
+                          const _SectionLabel(
+                            icon: Icons.cancel_outlined,
+                            color: Colors.grey,
+                            label: '취소됨',
+                          ),
+                          ...cancelled.map((item) => _CancelledTile(
+                                key: ValueKey('cancel_${item.id}'),
+                                item: item,
+                                onDelete: () => ref
+                                    .read(brainDumpProvider.notifier)
+                                    .delete(item.id),
                               )),
                         ],
                       ],
@@ -215,7 +224,7 @@ class _QuickInput extends StatelessWidget {
         controller: controller,
         focusNode: focusNode,
         decoration: const InputDecoration(
-          hintText: '생각을 입력하고 엔터...',
+          hintText: '태스크를 입력하고 엔터...',
           border: OutlineInputBorder(),
           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           isDense: true,
@@ -237,16 +246,16 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.lightbulb_outline,
+          Icon(Icons.task_alt_outlined,
               size: 56, color: Colors.grey.shade400),
           const SizedBox(height: 12),
           Text(
-            '머릿속 생각을 자유롭게 적어보세요',
+            '태스크를 자유롭게 추가하세요',
             style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
           ),
           const SizedBox(height: 4),
           Text(
-            '오늘 탭 캘린더에서 시간을 배치할 수 있어요',
+            '시간표에서 시간을 배치할 수 있어요',
             style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
           ),
         ],
@@ -263,6 +272,7 @@ class _BrainDumpTile extends StatelessWidget {
   final VoidCallback onToggle;
   final VoidCallback onDelete;
   final VoidCallback? onToggleStar; // null이면 별표 버튼 숨김 (완료 항목)
+  final VoidCallback? onCancel;
 
   const _BrainDumpTile({
     Key? key,
@@ -270,6 +280,7 @@ class _BrainDumpTile extends StatelessWidget {
     required this.onToggle,
     required this.onDelete,
     required this.onToggleStar,
+    this.onCancel,
   }) : super(key: key);
 
   @override
@@ -298,8 +309,11 @@ class _BrainDumpTile extends StatelessWidget {
             color: item.isChecked ? Colors.grey : null,
           ),
         ),
-        trailing: onToggleStar != null
-            ? IconButton(
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (onToggleStar != null)
+              IconButton(
                 icon: Icon(
                   item.isStarred ? Icons.star : Icons.star_border,
                   color: item.isStarred ? Colors.amber.shade600 : Colors.grey,
@@ -307,8 +321,54 @@ class _BrainDumpTile extends StatelessWidget {
                 ),
                 tooltip: item.isStarred ? '별표 해제' : '별표 등록',
                 onPressed: onToggleStar,
-              )
-            : null,
+              ),
+            if (onCancel != null)
+              IconButton(
+                icon: Icon(Icons.cancel_outlined, size: 20, color: Colors.grey.shade400),
+                tooltip: '취소',
+                onPressed: onCancel,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// 취소된 항목 타일
+// ─────────────────────────────────────────────
+class _CancelledTile extends StatelessWidget {
+  final BrainDumpItem item;
+  final VoidCallback onDelete;
+
+  const _CancelledTile({
+    Key? key,
+    required this.item,
+    required this.onDelete,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Dismissible(
+      key: ValueKey('dismissible_cancel_${item.id}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        color: Colors.red.shade400,
+        child: const Icon(Icons.delete_outline, color: Colors.white),
+      ),
+      onDismissed: (_) => onDelete(),
+      child: ListTile(
+        leading: const Icon(Icons.cancel_outlined, size: 20, color: Colors.grey),
+        title: Text(
+          item.content,
+          style: const TextStyle(
+            decoration: TextDecoration.lineThrough,
+            color: Colors.grey,
+          ),
+        ),
       ),
     );
   }

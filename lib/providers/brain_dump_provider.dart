@@ -52,6 +52,11 @@ class BrainDumpNotifier extends StateNotifier<List<BrainDumpItem>> {
     await _repo.toggleStar(id);
     _load();
   }
+
+  Future<void> cancel(String id) async {
+    await _repo.cancel(id);
+    _load();
+  }
 }
 
 final brainDumpProvider =

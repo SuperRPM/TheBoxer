@@ -22,11 +22,15 @@ class BrainDumpItem extends HiveObject {
   @HiveField(4)
   bool isStarred;
 
+  @HiveField(5)
+  bool isCancelled;
+
   BrainDumpItem({
     required this.id,
     required this.content,
     this.isChecked = false,
     required this.createdAt,
     this.isStarred = false,
+    this.isCancelled = false,
   });
 }

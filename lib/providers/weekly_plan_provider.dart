@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 import 'package:timebox_planner/data/local/hive_weekly_plan_repository.dart';
 import 'package:timebox_planner/data/models/weekly_plan.dart';
 import 'package:timebox_planner/data/repositories/weekly_plan_repository.dart';
@@ -55,6 +56,17 @@ class WeeklyPlanNotifier extends StateNotifier<AsyncValue<WeeklyPlan?>> {
 
   Future<void> refresh() async {
     await _load();
+  }
+
+  Future<void> saveMemo(String content, dynamic currentPlan) async {
+    final weekStart = TimeUtils.getWeekStartDate(DateTime.now());
+    final plan = WeeklyPlan(
+      id: currentPlan?.id ?? const Uuid().v4(),
+      weekStartDate: weekStart,
+      content: content,
+      goals: currentPlan?.goals ?? [],
+    );
+    await savePlan(plan);
   }
 }
 

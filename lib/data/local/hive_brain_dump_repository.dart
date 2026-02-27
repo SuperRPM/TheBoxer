@@ -41,6 +41,14 @@ class HiveBrainDumpRepository {
     await item.save();
   }
 
+  /// 취소 상태 토글
+  Future<void> cancel(String id) async {
+    final item = _box.get(id);
+    if (item == null) return;
+    item.isCancelled = true;
+    await item.save();
+  }
+
   /// 날짜가 바뀌었으면 모든 항목 삭제 (다음날 초기화)
   Future<void> clearAllIfNewDay() async {
     final settingsBox = Hive.box<dynamic>(AppConstants.settingsBoxName);
